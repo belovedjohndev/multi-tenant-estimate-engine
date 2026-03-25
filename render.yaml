@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: estimate-engine-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WIDGET_ORIGIN
+        sync: false
