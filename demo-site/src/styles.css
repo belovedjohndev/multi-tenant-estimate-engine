@@ -1,0 +1,137 @@
+:root {
+    color-scheme: light;
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    color: #10233d;
+    background:
+        radial-gradient(circle at top left, rgba(251, 146, 60, 0.22), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.18), transparent 32%),
+        linear-gradient(180deg, #fffaf4, #eef6ff 78%);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+}
+
+.demo-shell {
+    width: min(1080px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 4rem 0 5rem;
+}
+
+.hero {
+    max-width: 46rem;
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+}
+
+.eyebrow,
+.card-label {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #c2410c;
+}
+
+.hero h1,
+.demo-copy h2 {
+    margin: 0;
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+}
+
+.hero h1 {
+    font-size: clamp(2.8rem, 7vw, 5rem);
+}
+
+.demo-copy h2 {
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+.hero-copy,
+.demo-copy p {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.75;
+    color: rgba(16, 35, 61, 0.82);
+}
+
+.demo-card {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 1.5rem;
+    align-items: stretch;
+    padding: 1.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 2rem;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.08);
+}
+
+.demo-copy {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.demo-widget-zone {
+    display: grid;
+    place-items: center;
+    min-height: 22rem;
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.96)),
+        linear-gradient(135deg, rgba(251, 146, 60, 0.08), rgba(14, 165, 233, 0.08));
+    position: relative;
+    overflow: hidden;
+}
+
+.demo-widget-zone::before {
+    content: "";
+    position: absolute;
+    inset: auto auto -3.5rem -3.5rem;
+    width: 9rem;
+    height: 9rem;
+    border-radius: 999px;
+    background: rgba(251, 146, 60, 0.14);
+}
+
+.demo-widget-zone::after {
+    content: "";
+    position: absolute;
+    inset: 1rem 1rem auto auto;
+    width: 7rem;
+    height: 7rem;
+    border-radius: 1.5rem;
+    background: rgba(14, 165, 233, 0.12);
+    transform: rotate(14deg);
+}
+
+#widget-root {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 840px) {
+    .demo-shell {
+        width: min(100% - 1rem, 1080px);
+        padding-top: 2rem;
+    }
+
+    .demo-card {
+        grid-template-columns: 1fr;
+    }
+
+    .demo-widget-zone {
+        min-height: 16rem;
+    }
+}
