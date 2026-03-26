@@ -23,9 +23,9 @@ export function renderLeadForm(options: LeadFormOptions): HTMLElement {
     });
 
     const form = createElement('form', { className: 'ee-form' });
-    const nameField = createTextField('Name', 'name', options.initialValue?.name ?? '', 'Jane Doe');
-    const emailField = createTextField('Email', 'email', options.initialValue?.email ?? '', 'jane@example.com');
-    const phoneField = createTextField('Phone', 'phone', options.initialValue?.phone ?? '', '+1-555-0100');
+    const nameField = createTextField('Name', 'name', options.initialValue?.name ?? '', 'Beloved John');
+    const emailField = createTextField('Email', 'email', options.initialValue?.email ?? '', 'belovedjohn@example.com');
+    const phoneField = createTextField('Phone', 'phone', options.initialValue?.phone ?? '', '+123 456 7890');
     const feedback = createElement('p', { className: 'ee-form-feedback' });
     const actions = createElement('div', { className: 'ee-actions' });
     const backButton = createElement('button', {
