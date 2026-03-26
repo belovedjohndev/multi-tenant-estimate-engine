@@ -5,6 +5,7 @@ import { ClientConfig } from '../domain/clientConfig';
 import { EstimatorConfig, parseEstimatorConfigRecord } from '../domain/estimate';
 import { insertAuditLog } from './auditLogRepository';
 import { pool } from './database';
+import { logInfo } from './logger';
 
 interface ClientRow {
     id: number;
@@ -143,6 +144,10 @@ export async function updateClientSettings(
     actorClientUserId?: number
 ): Promise<ClientSettings> {
     const connection = await pool.connect();
+    const pendingLogEvents: Array<{
+        event: 'config_version_created' | 'config_version_activated';
+        fields: Record<string, unknown>;
+    }> = [];
 
     try {
         await connection.query('BEGIN');
@@ -231,6 +236,16 @@ export async function updateClientSettings(
                     previousActiveConfigVersionId: activeConfigRow.id
                 }
             });
+            pendingLogEvents.push({
+                event: 'config_version_created',
+                fields: {
+                    clientId,
+                    configVersionId: insertedVersion.id,
+                    versionNumber: insertedVersion.version_number,
+                    actorClientUserId: actorClientUserId ?? null,
+                    previousActiveConfigVersionId: activeConfigRow.id
+                }
+            });
 
             await connection.query('UPDATE clients SET active_config_version_id = $1 WHERE id = $2', [insertedVersion.id, clientId]);
 
@@ -246,6 +261,17 @@ export async function updateClientSettings(
                     newActiveConfigVersionId: insertedVersion.id
                 }
             });
+            pendingLogEvents.push({
+                event: 'config_version_activated',
+                fields: {
+                    clientId,
+                    configVersionId: insertedVersion.id,
+                    versionNumber: insertedVersion.version_number,
+                    actorClientUserId: actorClientUserId ?? null,
+                    previousActiveConfigVersionId: activeConfigRow.id,
+                    newActiveConfigVersionId: insertedVersion.id
+                }
+            });
         }
 
         await connection.query('COMMIT');
@@ -254,6 +280,10 @@ export async function updateClientSettings(
         throw error;
     } finally {
         connection.release();
+    }
+
+    for (const pendingLogEvent of pendingLogEvents) {
+        logInfo(pendingLogEvent.event, pendingLogEvent.fields);
     }
 
     return getClientSettings(clientId);

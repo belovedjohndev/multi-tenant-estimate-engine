@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { AppError, isAppError } from '../application/errors';
+import { logError, logWarn } from '../infrastructure/logger';
 
 export function sendSuccess<T>(res: Response, data: T, statusCode = 200) {
     return res.status(statusCode).json({
@@ -12,8 +13,14 @@ export function notFoundHandler(_req: Request, _res: Response, next: NextFunctio
     next(new AppError(404, 'not_found', 'Route not found'));
 }
 
-export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
     if (isBodyParseError(error)) {
+        logWarn('request_invalid_json', {
+            method: req.method,
+            path: req.originalUrl || req.url,
+            statusCode: 400
+        });
+
         return res.status(400).json({
             success: false,
             error: {
@@ -24,6 +31,14 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     }
 
     if (isAppError(error)) {
+        logWarn('request_app_error', {
+            method: req.method,
+            path: req.originalUrl || req.url,
+            statusCode: error.statusCode,
+            errorCode: error.code,
+            errorMessage: error.message
+        });
+
         return res.status(error.statusCode).json({
             success: false,
             error: {
@@ -33,7 +48,11 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
         });
     }
 
-    console.error('Unhandled error', error);
+    logError('request_unhandled_error', {
+        method: req.method,
+        path: req.originalUrl || req.url,
+        error
+    });
 
     return res.status(500).json({
         success: false,

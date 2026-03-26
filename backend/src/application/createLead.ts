@@ -1,6 +1,7 @@
 import { NotFoundError } from './errors';
 import { EstimateInput, EstimateResponse } from '../domain/estimate';
 import { findClientByName, findClientConfigVersionById } from '../infrastructure/clientRepository';
+import { logInfo } from '../infrastructure/logger';
 import { sendLeadCreatedNotification } from '../infrastructure/leadNotificationEmailService';
 import { insertLead } from '../infrastructure/leadRepository';
 
@@ -37,6 +38,14 @@ export async function createLead(request: CreateLeadRequest): Promise<number> {
         estimateData: request.estimateData
     });
 
+    logInfo('lead_created', {
+        clientId: client.id,
+        clientName: client.name,
+        leadId,
+        configVersionId: configVersion.id,
+        email: request.email
+    });
+
     try {
         await sendLeadCreatedNotification({
             leadId,
@@ -49,13 +58,7 @@ export async function createLead(request: CreateLeadRequest): Promise<number> {
                 estimateData: request.estimateData
             }
         });
-    } catch (error) {
-        console.error('Lead notification email failed', {
-            clientId: client.id,
-            clientName: client.name,
-            leadId,
-            error
-        });
+    } catch (_error) {
     }
 
     return leadId;

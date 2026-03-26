@@ -1,6 +1,7 @@
 import { request as httpsRequest } from 'node:https';
 import { Client } from '../domain/client';
 import { EstimateInput, EstimateResponse } from '../domain/estimate';
+import { logError, logInfo, logWarn } from './logger';
 
 interface LeadCreatedNotificationRequest {
     leadId: number;
@@ -38,6 +39,11 @@ export async function sendLeadCreatedNotification(request: LeadCreatedNotificati
     const recipientEmail = request.client.notificationEmail?.trim();
 
     if (!recipientEmail) {
+        logInfo('lead_notification_skipped_no_recipient', {
+            clientId: request.client.id,
+            clientName: request.client.name,
+            leadId: request.leadId
+        });
         return;
     }
 
@@ -45,30 +51,81 @@ export async function sendLeadCreatedNotification(request: LeadCreatedNotificati
     const fromEmail = readOptionalEnv('LEAD_NOTIFICATION_FROM_EMAIL');
 
     if (!resendApiKey || !fromEmail) {
-        console.warn(
-            `Lead notification skipped for client "${request.client.name}" because RESEND_API_KEY or LEAD_NOTIFICATION_FROM_EMAIL is not configured.`
-        );
+        logWarn('lead_notification_skipped_unconfigured', {
+            clientId: request.client.id,
+            clientName: request.client.name,
+            leadId: request.leadId,
+            configured: false,
+            missingConfiguration: getMissingEmailConfiguration()
+        });
         return;
     }
 
-    const payload = buildResendPayload(request, fromEmail, recipientEmail);
-    const response = await postJson(
-        {
-            hostname: RESEND_API_HOST,
-            path: RESEND_API_PATH,
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${resendApiKey}`,
-                'Content-Type': 'application/json',
-                'Idempotency-Key': `lead-created-${request.leadId}`
-            }
-        },
-        payload
-    );
+    try {
+        const payload = buildResendPayload(request, fromEmail, recipientEmail);
+        const response = await postJson(
+            {
+                hostname: RESEND_API_HOST,
+                path: RESEND_API_PATH,
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${resendApiKey}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': `lead-created-${request.leadId}`
+                }
+            },
+            payload
+        );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw new Error(`Resend email API returned ${response.statusCode}: ${response.body}`);
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            logError('lead_notification_failed', {
+                clientId: request.client.id,
+                clientName: request.client.name,
+                leadId: request.leadId,
+                recipientEmail,
+                statusCode: response.statusCode,
+                responseBody: truncateLogText(response.body, 500)
+            });
+            throw new Error(`Resend email API returned ${response.statusCode}: ${response.body}`);
+        }
+
+        logInfo('lead_notification_sent', {
+            clientId: request.client.id,
+            clientName: request.client.name,
+            leadId: request.leadId,
+            recipientEmail,
+            provider: 'resend',
+            statusCode: response.statusCode
+        });
+    } catch (error) {
+        if (!(error instanceof Error && error.message.startsWith('Resend email API returned'))) {
+            logError('lead_notification_failed', {
+                clientId: request.client.id,
+                clientName: request.client.name,
+                leadId: request.leadId,
+                recipientEmail,
+                error
+            });
+        }
+
+        throw error;
     }
+}
+
+export function getLeadNotificationHealth(): {
+    provider: 'resend';
+    configured: boolean;
+    missingConfiguration: string[];
+    timeoutMs: number;
+} {
+    const missingConfiguration = getMissingEmailConfiguration();
+
+    return {
+        provider: 'resend',
+        configured: missingConfiguration.length === 0,
+        missingConfiguration,
+        timeoutMs: readTimeoutMs()
+    };
 }
 
 function buildResendPayload(
@@ -219,6 +276,13 @@ function readOptionalEnv(name: 'LEAD_NOTIFICATION_FROM_EMAIL' | 'RESEND_API_KEY'
     return trimmedValue || undefined;
 }
 
+function getMissingEmailConfiguration(): string[] {
+    return [
+        readOptionalEnv('RESEND_API_KEY') ? null : 'RESEND_API_KEY',
+        readOptionalEnv('LEAD_NOTIFICATION_FROM_EMAIL') ? null : 'LEAD_NOTIFICATION_FROM_EMAIL'
+    ].filter((value): value is string => Boolean(value));
+}
+
 function readTimeoutMs(): number {
     const rawValue = process.env.LEAD_NOTIFICATION_TIMEOUT_MS;
 
@@ -260,4 +324,12 @@ function sanitizeTagValue(value: string): string {
     const sanitized = value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
 
     return sanitized.slice(0, 64) || 'unknown_client';
+}
+
+function truncateLogText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    return `${value.slice(0, maxLength)}...`;
 }

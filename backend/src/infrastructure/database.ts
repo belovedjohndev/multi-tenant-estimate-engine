@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { logError } from './logger';
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -17,12 +18,31 @@ const pool = new Pool({
 });
 
 pool.on('error', (error) => {
-    console.error('Unexpected idle PostgreSQL client error', error);
+    logError('database_pool_error', {
+        error
+    });
 });
 
 export async function verifyDatabaseConnection() {
+    await checkDatabaseHealth();
+}
+
+export async function checkDatabaseHealth(): Promise<{ status: 'ok'; latencyMs: number }> {
+    const startedAt = process.hrtime.bigint();
     const client = await pool.connect();
-    client.release();
+
+    try {
+        await client.query('SELECT 1');
+    } finally {
+        client.release();
+    }
+
+    const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+
+    return {
+        status: 'ok',
+        latencyMs: Number(latencyMs.toFixed(2))
+    };
 }
 
 export { pool };

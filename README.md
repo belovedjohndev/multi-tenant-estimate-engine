@@ -23,16 +23,18 @@ Multi-tenant estimate and lead capture system for service businesses.
 
 ## Current Milestone
 
-The backend now has deterministic automated tests covering the highest-risk multi-tenant portal and pricing flows.
+The backend now has structured observability and operational health probes without changing existing API contracts.
 
-- Added backend integration tests for login, logout, `/auth/me`, and protected portal access.
-- Added backend coverage for immutable pricing config versioning rules, including unchanged-vs-changed save behavior.
-- Added backend coverage for lead capture storing `config_version_id`.
-- Added backend coverage for tenant isolation across leads and client settings.
-- Tests replay the real migration SQL into a deterministic pg-compatible in-memory database so the coverage stays close to production schema behavior.
+- Added JSON structured logging across backend request handling and runtime events.
+- Added request ID middleware with `X-Request-Id` response headers.
+- Added request start/end logging with status code and duration for all routes.
+- Added business event logs for login, lead creation, pricing config version creation/activation, and lead email delivery outcomes.
+- Added `/health`, `/health/db`, and `/health/email` endpoints for operational diagnostics.
+- Added a centralized error handler with structured error logging.
 
 Milestone notes:
 
+- [`docs/milestones/observability-and-operational-hardening.md`](./docs/milestones/observability-and-operational-hardening.md)
 - [`docs/milestones/backend-critical-flow-tests.md`](./docs/milestones/backend-critical-flow-tests.md)
 - [`docs/milestones/http-only-cookie-auth.md`](./docs/milestones/http-only-cookie-auth.md)
 - [`docs/milestones/portal-site-split.md`](./docs/milestones/portal-site-split.md)
@@ -289,6 +291,20 @@ Pricing versioning notes:
 - `POST /estimate` responses include `configVersion.id` and `configVersion.versionNumber`.
 - `POST /leads` persists the config version used for the estimate.
 
+## Health Endpoints
+
+Operational endpoints:
+
+- `GET /health` returns process-level liveness data
+- `GET /health/db` checks PostgreSQL connectivity
+- `GET /health/email` reports whether lead email delivery is configured
+
+Operational notes:
+
+- `/health/email` returns `503` when `RESEND_API_KEY` or `LEAD_NOTIFICATION_FROM_EMAIL` is missing.
+- `/health/db` returns `503` when the backend cannot complete a database probe.
+- Existing product API contracts are unchanged; these are additive endpoints for diagnostics.
+
 ## Backend Tests
 
 Run the backend test suite:
@@ -314,6 +330,33 @@ Test design notes:
 - The suite uses the real SQL migration files from `backend/db/migrations/`.
 - Tests run against a deterministic pg-compatible in-memory database via `pg-mem`.
 - The backend app is instantiated per test, and test data is reseeded each time to keep flows isolated and repeatable.
+
+## Logging And Observability
+
+Backend logging now emits structured JSON lines.
+
+Included fields:
+
+- `timestamp`
+- `level`
+- `event`
+- `requestId`
+- request method/path metadata where available
+
+Request lifecycle coverage:
+
+- every request logs `request_started`
+- every request logs `request_completed` with status code and duration
+- application errors log through the centralized error handler
+
+Key business events:
+
+- `portal_login_succeeded`
+- `lead_created`
+- `config_version_created`
+- `config_version_activated`
+- `lead_notification_sent`
+- `lead_notification_failed`
 
 ## Cookie Auth Notes
 

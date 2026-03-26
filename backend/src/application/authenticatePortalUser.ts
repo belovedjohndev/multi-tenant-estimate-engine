@@ -6,6 +6,7 @@ import {
     updateClientUserLastLogin
 } from '../infrastructure/clientUserRepository';
 import { generateSessionToken, hashSessionToken, verifyPassword } from '../infrastructure/authSecurity';
+import { logInfo } from '../infrastructure/logger';
 
 export interface AuthenticatePortalUserRequest {
     clientId: string;
@@ -59,6 +60,14 @@ export async function authenticatePortalUser(
         }),
         updateClientUserLastLogin(user.id)
     ]);
+
+    logInfo('portal_login_succeeded', {
+        clientId: client.id,
+        clientName: client.name,
+        clientUserId: user.id,
+        email: user.email,
+        sessionExpiresAt: expiresAt.toISOString()
+    });
 
     return {
         token,

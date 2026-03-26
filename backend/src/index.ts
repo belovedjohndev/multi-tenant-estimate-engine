@@ -5,13 +5,19 @@ import { clientConfigModule } from './modules/clientConfig';
 import { leadsModule } from './modules/leads';
 import { portalModule } from './modules/portal';
 import { estimateModule } from './modules/estimate';
+import { healthModule } from './modules/health';
 import { errorHandler, notFoundHandler } from './http/api';
+import { requestContextMiddleware } from './http/requestContext';
+import { requestLoggingMiddleware } from './http/requestLogging';
 import { verifyDatabaseConnection } from './infrastructure/database';
+import { logError, logInfo } from './infrastructure/logger';
 
 export function createApp() {
     const app = express();
     const allowedOrigins = getAllowedOrigins();
 
+    app.use(requestContextMiddleware);
+    app.use(requestLoggingMiddleware);
     app.use((req, res, next) => {
         const requestOrigin = req.header('Origin');
 
@@ -20,7 +26,8 @@ export function createApp() {
             res.header('Vary', 'Origin');
             res.header('Access-Control-Allow-Credentials', 'true');
             res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-            res.header('Access-Control-Allow-Headers', 'Content-Type');
+            res.header('Access-Control-Allow-Headers', 'Content-Type,X-Request-Id');
+            res.header('Access-Control-Expose-Headers', 'X-Request-Id');
         }
 
         if (req.method === 'OPTIONS') {
@@ -31,6 +38,7 @@ export function createApp() {
     });
     app.use(express.json());
 
+    app.use('/health', healthModule);
     app.use('/client-config', clientConfigModule);
     app.use('/leads', leadsModule);
     app.use('/estimate', estimateModule);
@@ -50,13 +58,17 @@ export async function start(): Promise<Server> {
     const app = createApp();
 
     return app.listen(port, () => {
-        console.log(`Estimator Engine Backend running on port ${port}`);
+        logInfo('backend_started', {
+            port: Number(port)
+        });
     });
 }
 
 if (require.main === module) {
     start().catch((error) => {
-        console.error('Failed to start backend', error);
+        logError('backend_start_failed', {
+            error
+        });
         process.exit(1);
     });
 }
