@@ -23,6 +23,13 @@ export class NotFoundError extends AppError {
     }
 }
 
+export class UnauthorizedError extends AppError {
+    constructor(message: string, code = 'unauthorized') {
+        super(401, code, message);
+        this.name = 'UnauthorizedError';
+    }
+}
+
 export function isAppError(error: unknown): error is AppError {
     return error instanceof AppError;
 }

@@ -25,6 +25,23 @@ export interface EstimateResponse {
     };
 }
 
+export function parseEstimatorConfigRecord(value: unknown, errorPrefix = 'estimatorConfig'): EstimatorConfig {
+    const config = requireObject(value, `${errorPrefix} must be an object`);
+    const multipliers = requireObject(config.multipliers, `${errorPrefix}.multipliers must be an object`);
+    const discounts = requireObject(config.discounts, `${errorPrefix}.discounts must be an object`);
+
+    return {
+        basePrice: requireNumber(config.basePrice, `${errorPrefix}.basePrice must be a number`),
+        multipliers: {
+            size: requireNumber(multipliers.size, `${errorPrefix}.multipliers.size must be a number`),
+            complexity: requireNumber(multipliers.complexity, `${errorPrefix}.multipliers.complexity must be a number`)
+        },
+        discounts: {
+            bulk: requireNumber(discounts.bulk, `${errorPrefix}.discounts.bulk must be a number`)
+        }
+    };
+}
+
 export function calculateEstimateFromConfig(
     estimatorConfig: EstimatorConfig,
     input: EstimateInput
@@ -58,4 +75,20 @@ export function calculateEstimateFromConfig(
             discount
         }
     };
+}
+
+function requireObject(value: unknown, message: string): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error(message);
+    }
+
+    return value as Record<string, unknown>;
+}
+
+function requireNumber(value: unknown, message: string): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new Error(message);
+    }
+
+    return value;
 }

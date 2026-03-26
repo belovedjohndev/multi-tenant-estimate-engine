@@ -7,7 +7,12 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "migrate": "psql -f db/migrations/001_initial.sql"
+    "migrate": "psql -f db/migrations/001_initial.sql",
+    "migrate:bootstrap": "psql -f db/migrations/001_initial.sql -f db/migrations/002_lead_notifications.sql",
+    "migrate:lead-notifications": "psql -f db/migrations/002_lead_notifications.sql",
+    "migrate:client-portal": "psql -f db/migrations/003_client_portal_auth.sql",
+    "migrate:client-settings": "psql -f db/migrations/004_client_settings_onboarding.sql",
+    "create:client-user": "ts-node src/scripts/createClientPortalUser.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

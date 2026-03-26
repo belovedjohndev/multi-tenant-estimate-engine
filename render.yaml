@@ -10,3 +10,11 @@ services:
         sync: false
       - key: WIDGET_ORIGIN
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: LEAD_NOTIFICATION_FROM_EMAIL
+        sync: false
+      - key: LEAD_NOTIFICATION_TIMEOUT_MS
+        sync: false
+      - key: CLIENT_PORTAL_SESSION_TTL_HOURS
+        sync: false

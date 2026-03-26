@@ -69,6 +69,7 @@ export interface LeadCaptureDetails {
 
 export interface LeadRequest extends LeadCaptureDetails {
     clientId: string;
+    estimateInput: EstimateInput;
     estimateData: EstimateResult;
 }
 

@@ -1,10 +1,17 @@
+import { Client } from '../domain/client';
+import { ClientSettings } from '../domain/clientSettings';
 import { ClientBranding } from '../domain/clientBranding';
 import { ClientConfig } from '../domain/clientConfig';
-import { EstimatorConfig } from '../domain/estimate';
+import { parseEstimatorConfigRecord } from '../domain/estimate';
 import { pool } from './database';
 
 interface ClientRow {
     id: number;
+    name: string;
+    company_name: string;
+    phone: string | null;
+    notification_email: string | null;
+    created_at: Date;
 }
 
 interface ClientBrandingRow {
@@ -25,9 +32,27 @@ interface ClientConfigRow {
 }
 
 export async function findClientIdByName(clientName: string): Promise<number | null> {
-    const clientRes = await pool.query<ClientRow>('SELECT id FROM clients WHERE name = $1', [clientName]);
+    const client = await findClientByName(clientName);
 
-    return clientRes.rows[0]?.id ?? null;
+    return client?.id ?? null;
+}
+
+export async function findClientByName(clientName: string): Promise<Client | null> {
+    const clientRes = await pool.query<ClientRow>(
+        'SELECT id, name, company_name, phone, notification_email, created_at FROM clients WHERE name = $1',
+        [clientName]
+    );
+
+    return clientRes.rows[0] ? mapClientRow(clientRes.rows[0]) : null;
+}
+
+export async function findClientById(clientId: number): Promise<Client | null> {
+    const clientRes = await pool.query<ClientRow>(
+        'SELECT id, name, company_name, phone, notification_email, created_at FROM clients WHERE id = $1',
+        [clientId]
+    );
+
+    return clientRes.rows[0] ? mapClientRow(clientRes.rows[0]) : null;
 }
 
 export async function getClientConfiguration(clientId: number): Promise<{
@@ -45,6 +70,80 @@ export async function getClientConfiguration(clientId: number): Promise<{
     };
 }
 
+export async function getClientBranding(clientId: number): Promise<ClientBranding | null> {
+    const brandingRes = await pool.query<ClientBrandingRow>('SELECT * FROM client_branding WHERE client_id = $1', [clientId]);
+
+    return brandingRes.rows[0] ? mapBrandingRow(brandingRes.rows[0]) : null;
+}
+
+export async function getClientSettings(clientId: number): Promise<ClientSettings> {
+    const client = await findClientById(clientId);
+
+    if (!client) {
+        throw new Error('Client not found');
+    }
+
+    const [branding, config] = await Promise.all([
+        getClientBranding(clientId),
+        getClientConfiguration(clientId).then((result) => result.config)
+    ]);
+
+    if (!config) {
+        throw new Error('Client config not found');
+    }
+
+    return {
+        clientId: client.name,
+        companyName: client.companyName,
+        logoUrl: branding?.logoUrl,
+        phone: client.phone,
+        notificationEmail: client.notificationEmail,
+        estimatorConfig: config.estimatorConfig
+    };
+}
+
+export async function updateClientSettings(
+    clientId: number,
+    settings: Omit<ClientSettings, 'clientId'>
+): Promise<ClientSettings> {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `UPDATE clients
+             SET company_name = $1, phone = $2, notification_email = $3
+             WHERE id = $4`,
+            [settings.companyName, settings.phone ?? null, settings.notificationEmail ?? null, clientId]
+        );
+
+        await client.query(
+            `INSERT INTO client_branding (client_id, logo_url)
+             VALUES ($1, $2)
+             ON CONFLICT (client_id)
+             DO UPDATE SET logo_url = EXCLUDED.logo_url`,
+            [clientId, settings.logoUrl ?? null]
+        );
+
+        await client.query(
+            `INSERT INTO client_config (client_id, estimator_config)
+             VALUES ($1, $2)
+             ON CONFLICT (client_id)
+             DO UPDATE SET estimator_config = EXCLUDED.estimator_config`,
+            [clientId, settings.estimatorConfig]
+        );
+
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+    return getClientSettings(clientId);
+}
+
 function mapBrandingRow(row: ClientBrandingRow): ClientBranding {
     return {
         id: row.id,
@@ -57,47 +156,22 @@ function mapBrandingRow(row: ClientBrandingRow): ClientBranding {
     };
 }
 
-function mapConfigRow(row: ClientConfigRow): ClientConfig {
+function mapClientRow(row: ClientRow): Client {
     return {
         id: row.id,
-        clientId: row.client_id,
-        estimatorConfig: parseEstimatorConfig(row.estimator_config),
+        name: row.name,
+        companyName: row.company_name,
+        phone: row.phone ?? undefined,
+        notificationEmail: row.notification_email ?? undefined,
         createdAt: row.created_at
     };
 }
 
-function parseEstimatorConfig(value: unknown): EstimatorConfig {
-    const config = requireObject(value, 'client_config.estimator_config must be an object');
-    const multipliers = requireObject(config.multipliers, 'client_config.estimator_config.multipliers must be an object');
-    const discounts = requireObject(config.discounts, 'client_config.estimator_config.discounts must be an object');
-
+function mapConfigRow(row: ClientConfigRow): ClientConfig {
     return {
-        basePrice: requireNumber(config.basePrice, 'client_config.estimator_config.basePrice must be a number'),
-        multipliers: {
-            size: requireNumber(multipliers.size, 'client_config.estimator_config.multipliers.size must be a number'),
-            complexity: requireNumber(
-                multipliers.complexity,
-                'client_config.estimator_config.multipliers.complexity must be a number'
-            )
-        },
-        discounts: {
-            bulk: requireNumber(discounts.bulk, 'client_config.estimator_config.discounts.bulk must be a number')
-        }
+        id: row.id,
+        clientId: row.client_id,
+        estimatorConfig: parseEstimatorConfigRecord(row.estimator_config, 'client_config.estimator_config'),
+        createdAt: row.created_at
     };
-}
-
-function requireObject(value: unknown, message: string): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new Error(message);
-    }
-
-    return value as Record<string, unknown>;
-}
-
-function requireNumber(value: unknown, message: string): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        throw new Error(message);
-    }
-
-    return value;
 }

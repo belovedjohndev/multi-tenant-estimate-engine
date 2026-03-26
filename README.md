@@ -8,14 +8,31 @@ Multi-tenant estimate and lead capture system for service businesses.
 - PostgreSQL
 - Reusable widget
 - Vite demo-site
+- Resend-backed lead notification emails
 
 ## Project Structure
 
 - `backend/` - API, application layer, domain, and persistence
 - `widget/` - embeddable estimate widget
 - `demo-site/` - owned demo host for the widget
+- `docs/` - milestone notes and implementation documentation
 - `render.yaml` - Render backend deployment config
 - `vercel.json` - Vercel demo-site deployment config
+
+## Current Milestone
+
+Client settings and onboarding are now supported inside the authenticated portal.
+
+- Authenticated clients can update company profile data without changing the stable tenant slug.
+- `GET /portal/client` and `PUT /portal/client` are tenant-isolated through portal auth.
+- Pricing config JSON can now be edited from the portal.
+- The public estimator flow still uses the existing `clientId` slug and remains compatible.
+
+Milestone notes:
+
+- [`docs/milestones/client-settings-onboarding.md`](./docs/milestones/client-settings-onboarding.md)
+- [`docs/milestones/client-dashboard-auth-v1.md`](./docs/milestones/client-dashboard-auth-v1.md)
+- [`docs/milestones/lead-email-notifications.md`](./docs/milestones/lead-email-notifications.md)
 
 ## Local Development
 
@@ -25,6 +42,9 @@ Backend:
 cd backend
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5434/estimate_engine"
 $env:WIDGET_ORIGIN="http://localhost:4173"
+$env:RESEND_API_KEY="re_xxxxx"
+$env:LEAD_NOTIFICATION_FROM_EMAIL="Estimate Engine <alerts@example.com>"
+$env:CLIENT_PORTAL_SESSION_TTL_HOURS="168"
 npm install
 npm run dev
 ```
@@ -59,6 +79,10 @@ Recommended environment variables:
 - `NODE_ENV=production`
 - `PORT`
 - `PGSSLMODE=require` if your hosted PostgreSQL provider requires SSL
+- `RESEND_API_KEY` to enable lead notification emails
+- `LEAD_NOTIFICATION_FROM_EMAIL` for the sender identity used by Resend
+- `LEAD_NOTIFICATION_TIMEOUT_MS=5000`
+- `CLIENT_PORTAL_SESSION_TTL_HOURS=168`
 
 Example values:
 
@@ -83,7 +107,33 @@ npm run build
 Hosted database migration command:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/001_initial.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/001_initial.sql -f backend/db/migrations/002_lead_notifications.sql -f backend/db/migrations/003_client_portal_auth.sql -f backend/db/migrations/004_client_settings_onboarding.sql
+```
+
+Incremental migration for an existing deployed database:
+
+```powershell
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/002_lead_notifications.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/003_client_portal_auth.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/004_client_settings_onboarding.sql
+```
+
+Configure a tenant notification recipient:
+
+```powershell
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "UPDATE clients SET notification_email = 'owner@example.com' WHERE name = 'demo';"
+```
+
+Bootstrap a client portal user:
+
+```powershell
+cd backend
+$env:DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME"
+$env:CLIENT_ID="demo"
+$env:CLIENT_USER_EMAIL="owner@example.com"
+$env:CLIENT_USER_FULL_NAME="Demo Owner"
+$env:CLIENT_USER_PASSWORD="change-me-123"
+npm run create:client-user
 ```
 
 ## Demo-Site Deployment on Vercel
@@ -145,9 +195,23 @@ After both deployments are live:
 7. Confirm the success state renders.
 8. Confirm the browser can call `GET /client-config?clientId=demo` successfully.
 9. Confirm the new lead exists in PostgreSQL.
+10. Confirm the configured client inbox receives the new lead notification email.
+11. Sign in to the client portal and confirm the new lead appears in the dashboard.
+12. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
 
 Example PostgreSQL verification command:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "SELECT id, email, estimate_data->>'total' AS total, created_at FROM leads ORDER BY id DESC LIMIT 10;"
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "SELECT id, email, estimate_input, estimate_data->>'total' AS total, created_at FROM leads ORDER BY id DESC LIMIT 10;"
 ```
+
+## Client Portal API
+
+Authenticated dashboard endpoints:
+
+- `POST /auth/login`
+- `GET /auth/me`
+- `POST /auth/logout`
+- `GET /me/leads?limit=25`
+- `GET /portal/client`
+- `PUT /portal/client`

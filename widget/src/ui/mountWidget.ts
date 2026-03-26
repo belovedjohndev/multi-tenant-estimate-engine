@@ -189,7 +189,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
     async function handleLeadSubmit(leadInput: WidgetState['leadInput']) {
         const currentState = store.getState();
 
-        if (!currentState.estimateResult || !leadInput) {
+        if (!currentState.estimateResult || !currentState.estimateInput || !leadInput) {
             return;
         }
 
@@ -202,6 +202,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
         try {
             const response = await submitLead(config, {
                 ...leadInput,
+                estimateInput: currentState.estimateInput,
                 estimateData: currentState.estimateResult
             });
 
