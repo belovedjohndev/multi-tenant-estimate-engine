@@ -8,13 +8,18 @@ import { errorHandler, notFoundHandler } from './http/api';
 import { verifyDatabaseConnection } from './infrastructure/database';
 
 const app = express();
-const allowedOrigin = process.env.WIDGET_ORIGIN || 'http://localhost:4173';
+const allowedOrigins = getAllowedOrigins();
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', allowedOrigin);
-    res.header('Vary', 'Origin');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    const requestOrigin = req.header('Origin');
+
+    if (requestOrigin && allowedOrigins.has(requestOrigin)) {
+        res.header('Access-Control-Allow-Origin', requestOrigin);
+        res.header('Vary', 'Origin');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+    }
 
     if (req.method === 'OPTIONS') {
         return res.sendStatus(204);
@@ -47,3 +52,16 @@ start().catch((error) => {
     console.error('Failed to start backend', error);
     process.exit(1);
 });
+
+function getAllowedOrigins(): Set<string> {
+    const configuredOrigins = [process.env.WIDGET_ORIGIN, process.env.PORTAL_ORIGIN]
+        .flatMap((value) => (value ? value.split(',') : []))
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+    if (!configuredOrigins.length) {
+        return new Set(['http://localhost:4173', 'http://localhost:4174']);
+    }
+
+    return new Set(configuredOrigins);
+}

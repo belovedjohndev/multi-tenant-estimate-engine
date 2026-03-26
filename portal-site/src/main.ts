@@ -1,4 +1,3 @@
-import { clearPortalAccessToken, persistPortalAccessToken, readPortalAccessToken } from './authSession';
 import { portalConfig } from './portalConfig';
 import {
     fetchPortalClientSettings,
@@ -16,7 +15,6 @@ type PortalStatus = 'signedOut' | 'loading' | 'signingIn' | 'ready' | 'error';
 interface AppState {
     portal: {
         status: PortalStatus;
-        token: string | null;
         session: PortalSession | null;
         leads: PortalLeadsResponse | null;
         settings: PortalClientSettings | null;
@@ -44,8 +42,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
 
 const state: AppState = {
     portal: {
-        status: 'signedOut',
-        token: readPortalAccessToken(),
+        status: 'loading',
         session: null,
         leads: null,
         settings: null,
@@ -59,30 +56,23 @@ renderApp();
 void hydratePortalSession();
 
 async function hydratePortalSession() {
-    const token = state.portal.token;
-
-    if (!token) {
-        return;
-    }
-
-    await loadPortalDashboard(token);
+    await loadPortalDashboard({ suppressErrorOnUnauthorized: true });
 }
 
-async function loadPortalDashboard(token: string) {
+async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boolean }) {
     state.portal.status = 'loading';
     state.portal.errorMessage = null;
     renderApp();
 
     try {
         const [session, leads, settings] = await Promise.all([
-            fetchPortalSession(token),
-            fetchPortalLeads(token),
-            fetchPortalClientSettings(token)
+            fetchPortalSession(),
+            fetchPortalLeads(),
+            fetchPortalClientSettings()
         ]);
 
         state.portal = {
             status: 'ready',
-            token,
             session,
             leads,
             settings,
@@ -91,14 +81,18 @@ async function loadPortalDashboard(token: string) {
             isSavingSettings: false
         };
     } catch (error) {
-        clearPortalAccessToken();
+        const statusCode = error instanceof Error && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : null;
+        const isUnauthorized = statusCode === 401;
+
         state.portal = {
-            status: 'error',
-            token: null,
+            status: isUnauthorized && options?.suppressErrorOnUnauthorized ? 'signedOut' : 'error',
             session: null,
             leads: null,
             settings: null,
-            errorMessage: getErrorMessage(error, 'Unable to load the client dashboard.'),
+            errorMessage:
+                isUnauthorized && options?.suppressErrorOnUnauthorized
+                    ? null
+                    : getErrorMessage(error, 'Unable to load the client dashboard.'),
             settingsMessage: null,
             isSavingSettings: false
         };
@@ -116,13 +110,14 @@ function renderApp() {
                     <h1>${escapeHtml(portalConfig.portalTitle)}</h1>
                     <p class="hero-copy">
                         Login, lead review, client settings, pricing config editing, config version history, and logout now
-                        live in a dedicated frontend app. The public estimator remains isolated in <code>demo-site</code>.
+                        live in a dedicated frontend app. Authentication now uses a server-managed HttpOnly session cookie
+                        and the public estimator remains isolated in <code>demo-site</code>.
                     </p>
                 </div>
                 <div class="portal-hero__meta">
                     <span class="hero-pill">Authenticated operations</span>
                     <span class="hero-pill">Tenant-safe settings</span>
-                    <span class="hero-pill">Prepared for cookie auth</span>
+                    <span class="hero-pill">HttpOnly cookie auth</span>
                 </div>
             </section>
             ${renderPortalSurface()}
@@ -151,8 +146,8 @@ function renderPortalSurface(): string {
                     <p class="surface-meta">No backend contract changes</p>
                 </div>
                 <p class="surface-copy">
-                    This frontend is the authenticated side of the SaaS product. Session storage is isolated behind a
-                    dedicated auth module so the transport can later switch to HttpOnly cookies without a UI rewrite.
+                    This frontend is the authenticated side of the SaaS product. Auth state comes from <code>/auth/me</code>
+                    while the session itself stays in a server-managed HttpOnly cookie.
                 </p>
                 ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
                 ${status === 'loading' || status === 'signingIn' ? renderPortalLoading(status) : renderLoginForm()}
@@ -408,15 +403,11 @@ function wirePortalEvents() {
             renderApp();
 
             try {
-                const login = await loginPortal({ clientId, email, password });
-                persistPortalAccessToken(login.token);
-                state.portal.token = login.token;
-                await loadPortalDashboard(login.token);
+                await loginPortal({ clientId, email, password });
+                await loadPortalDashboard();
             } catch (error) {
-                clearPortalAccessToken();
                 state.portal = {
                     status: 'error',
-                    token: null,
                     session: null,
                     leads: null,
                     settings: null,
@@ -433,13 +424,7 @@ function wirePortalEvents() {
 
     if (refreshButton instanceof HTMLButtonElement) {
         refreshButton.addEventListener('click', async () => {
-            const token = state.portal.token;
-
-            if (!token) {
-                return;
-            }
-
-            await loadPortalDashboard(token);
+            await loadPortalDashboard();
         });
     }
 
@@ -447,20 +432,14 @@ function wirePortalEvents() {
 
     if (logoutButton instanceof HTMLButtonElement) {
         logoutButton.addEventListener('click', async () => {
-            const token = state.portal.token;
-
             try {
-                if (token) {
-                    await logoutPortal(token);
-                }
+                await logoutPortal();
             } catch {
                 // Logging out should still clear the local session even if the network request fails.
             }
 
-            clearPortalAccessToken();
             state.portal = {
                 status: 'signedOut',
-                token: null,
                 session: null,
                 leads: null,
                 settings: null,
@@ -478,10 +457,9 @@ function wirePortalEvents() {
         settingsForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
-            const token = state.portal.token;
             const currentSettings = state.portal.settings;
 
-            if (!token || !currentSettings) {
+            if (!currentSettings) {
                 return;
             }
 
@@ -505,7 +483,7 @@ function wirePortalEvents() {
             renderApp();
 
             try {
-                const updatedSettings = await updatePortalClientSettings(token, {
+                const updatedSettings = await updatePortalClientSettings({
                     companyName: String(formData.get('companyName') ?? '').trim(),
                     logoUrl: normalizeOptionalValue(formData.get('logoUrl')),
                     phone: normalizeOptionalValue(formData.get('phone')),

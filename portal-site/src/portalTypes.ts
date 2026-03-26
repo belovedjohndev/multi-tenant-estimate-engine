@@ -1,5 +1,4 @@
 export interface PortalLoginResponse {
-    token: string;
     expiresAt: string;
     user: {
         id: number;

@@ -9,6 +9,7 @@ build/
 .env.*
 backend/.env
 demo-site/.env
+portal-site/.env
 widget/.env
 
 # OS

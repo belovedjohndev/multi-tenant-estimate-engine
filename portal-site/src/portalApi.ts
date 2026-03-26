@@ -33,52 +33,36 @@ export async function loginPortal(input: {
     });
 }
 
-export async function fetchPortalSession(token: string): Promise<PortalSession> {
+export async function fetchPortalSession(): Promise<PortalSession> {
     return requestPortalApi<PortalSession>('/auth/me', {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        method: 'GET'
     });
 }
 
-export async function fetchPortalLeads(token: string, limit = 25): Promise<PortalLeadsResponse> {
+export async function fetchPortalLeads(limit = 25): Promise<PortalLeadsResponse> {
     return requestPortalApi<PortalLeadsResponse>(`/me/leads?limit=${encodeURIComponent(String(limit))}`, {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        method: 'GET'
     });
 }
 
-export async function fetchPortalClientSettings(token: string): Promise<PortalClientSettings> {
+export async function fetchPortalClientSettings(): Promise<PortalClientSettings> {
     return requestPortalApi<PortalClientSettings>('/portal/client', {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        method: 'GET'
     });
 }
 
 export async function updatePortalClientSettings(
-    token: string,
     input: Omit<PortalClientSettings, 'clientId' | 'currentConfigVersion' | 'configHistory'>
 ): Promise<PortalClientSettings> {
     return requestPortalApi<PortalClientSettings>('/portal/client', {
         method: 'PUT',
-        body: JSON.stringify(input),
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        body: JSON.stringify(input)
     });
 }
 
-export async function logoutPortal(token: string): Promise<void> {
+export async function logoutPortal(): Promise<void> {
     await requestPortalApi('/auth/logout', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
+        method: 'POST'
     });
 }
 
@@ -93,6 +77,7 @@ async function requestPortalApi<T>(
     const response = await fetch(`${portalConfig.apiBaseUrl}${path}`, {
         method: init.method,
         body: init.body,
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
             ...init.headers

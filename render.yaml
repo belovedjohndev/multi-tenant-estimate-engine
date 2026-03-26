@@ -10,6 +10,8 @@ services:
         sync: false
       - key: WIDGET_ORIGIN
         sync: false
+      - key: PORTAL_ORIGIN
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: LEAD_NOTIFICATION_FROM_EMAIL
@@ -17,4 +19,10 @@ services:
       - key: LEAD_NOTIFICATION_TIMEOUT_MS
         sync: false
       - key: CLIENT_PORTAL_SESSION_TTL_HOURS
+        sync: false
+      - key: CLIENT_PORTAL_COOKIE_SECURE
+        sync: false
+      - key: CLIENT_PORTAL_COOKIE_SAME_SITE
+        sync: false
+      - key: CLIENT_PORTAL_COOKIE_NAME
         sync: false

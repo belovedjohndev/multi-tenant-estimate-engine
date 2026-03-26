@@ -23,15 +23,17 @@ Multi-tenant estimate and lead capture system for service businesses.
 
 ## Current Milestone
 
-The authenticated client portal has been split into a dedicated `portal-site` frontend app.
+The portal now uses server-managed HttpOnly cookie auth instead of browser-stored bearer tokens.
 
-- `demo-site` is now public-only and hosts the embeddable estimator demo.
-- `portal-site` now owns login, dashboard, client settings, pricing config editing, config version history, and logout.
-- Backend API contracts are unchanged, so both frontends continue using the existing endpoints.
-- Portal auth token persistence is isolated in a dedicated module to make a future move to HttpOnly cookie auth easier.
+- `POST /auth/login` sets an HttpOnly session cookie backed by existing server-side session persistence.
+- `POST /auth/logout` revokes the server session and clears the cookie.
+- `GET /auth/me` is now the source of truth for portal auth state.
+- `portal-site` now authenticates with `credentials: "include"` and no longer stores auth tokens in browser storage.
+- Backend CORS now supports credentialed requests from the configured `PORTAL_ORIGIN`.
 
 Milestone notes:
 
+- [`docs/milestones/http-only-cookie-auth.md`](./docs/milestones/http-only-cookie-auth.md)
 - [`docs/milestones/portal-site-split.md`](./docs/milestones/portal-site-split.md)
 - [`docs/milestones/pricing-config-versioning.md`](./docs/milestones/pricing-config-versioning.md)
 - [`docs/milestones/client-settings-onboarding.md`](./docs/milestones/client-settings-onboarding.md)
@@ -46,9 +48,12 @@ Backend:
 cd backend
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5434/estimate_engine"
 $env:WIDGET_ORIGIN="http://localhost:4173"
+$env:PORTAL_ORIGIN="http://localhost:4174"
 $env:RESEND_API_KEY="re_xxxxx"
 $env:LEAD_NOTIFICATION_FROM_EMAIL="Estimate Engine <alerts@example.com>"
 $env:CLIENT_PORTAL_SESSION_TTL_HOURS="168"
+$env:CLIENT_PORTAL_COOKIE_SECURE="false"
+$env:CLIENT_PORTAL_COOKIE_SAME_SITE="lax"
 npm install
 npm run dev
 ```
@@ -88,6 +93,7 @@ Required environment variables:
 
 - `DATABASE_URL`
 - `WIDGET_ORIGIN`
+- `PORTAL_ORIGIN`
 
 Recommended environment variables:
 
@@ -98,18 +104,22 @@ Recommended environment variables:
 - `LEAD_NOTIFICATION_FROM_EMAIL` for the sender identity used by Resend
 - `LEAD_NOTIFICATION_TIMEOUT_MS=5000`
 - `CLIENT_PORTAL_SESSION_TTL_HOURS=168`
+- `CLIENT_PORTAL_COOKIE_SECURE=true`
+- `CLIENT_PORTAL_COOKIE_SAME_SITE=lax` for same-site deployments, or `none` for cross-site frontend/backend deployments
+- `CLIENT_PORTAL_COOKIE_NAME=estimate_engine_portal_session`
 
 Example values:
 
 - `DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME`
 - `WIDGET_ORIGIN=https://your-demo-site.vercel.app`
+- `PORTAL_ORIGIN=https://your-portal-site.vercel.app`
 
 Create the Render service:
 
 1. Push this repo to GitHub.
 2. In Render, choose `New +` -> `Blueprint`.
 3. Connect the repo and deploy the root `render.yaml`.
-4. Enter values for `DATABASE_URL` and `WIDGET_ORIGIN` when prompted.
+4. Enter values for `DATABASE_URL`, `WIDGET_ORIGIN`, and `PORTAL_ORIGIN` when prompted.
 
 Build verification command:
 
@@ -251,6 +261,8 @@ After both deployments are live:
 14. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
 15. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
 16. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
+17. Refresh the portal-site and confirm the session is still resolved from the HttpOnly cookie via `GET /auth/me`.
+18. Sign out and confirm the portal returns to the login screen and `POST /auth/logout` clears the cookie-backed session.
 
 Example PostgreSQL verification command:
 
@@ -274,3 +286,18 @@ Pricing versioning notes:
 - `GET /client-config?clientId=...` now resolves the active immutable config version for the tenant.
 - `POST /estimate` responses include `configVersion.id` and `configVersion.versionNumber`.
 - `POST /leads` persists the config version used for the estimate.
+
+## Cookie Auth Notes
+
+Local development defaults:
+
+- `PORTAL_ORIGIN=http://localhost:4174`
+- `CLIENT_PORTAL_COOKIE_SECURE=false`
+- `CLIENT_PORTAL_COOKIE_SAME_SITE=lax`
+
+Production guidance:
+
+- Use `HttpOnly` cookies with `Secure=true`.
+- Use `CLIENT_PORTAL_COOKIE_SAME_SITE=lax` when backend and portal share the same site.
+- Use `CLIENT_PORTAL_COOKIE_SAME_SITE=none` when backend and portal are on different sites and credentialed cross-origin requests are required.
+- `PORTAL_ORIGIN` must be the exact portal frontend origin because credentialed CORS cannot use `*`.

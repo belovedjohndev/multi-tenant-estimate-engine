@@ -29,6 +29,12 @@ export interface PortalSessionResult {
 
 export async function getPortalSession(token: string): Promise<PortalSessionResult> {
     const context = await requirePortalSessionContext(token);
+    return getPortalSessionFromContext(context);
+}
+
+export async function getPortalSessionFromContext(
+    context: Awaited<ReturnType<typeof requirePortalSessionContext>>
+): Promise<PortalSessionResult> {
     const branding = await getClientBranding(context.client.id);
 
     return {
