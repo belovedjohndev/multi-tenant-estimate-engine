@@ -8,5 +8,11 @@ export interface EstimateRequest {
 
 export async function calculateEstimate(request: EstimateRequest): Promise<EstimateResponse> {
     const configData = await getClientConfig(request.clientId);
-    return calculateEstimateFromConfig(configData.config.estimatorConfig, request.input);
+    return {
+        ...calculateEstimateFromConfig(configData.config.estimatorConfig, request.input),
+        configVersion: {
+            id: configData.config.id,
+            versionNumber: configData.config.versionNumber
+        }
+    };
 }

@@ -62,7 +62,7 @@ export async function fetchPortalClientSettings(token: string): Promise<PortalCl
 
 export async function updatePortalClientSettings(
     token: string,
-    input: Omit<PortalClientSettings, 'clientId'>
+    input: Omit<PortalClientSettings, 'clientId' | 'currentConfigVersion' | 'configHistory'>
 ): Promise<PortalClientSettings> {
     return requestPortalApi<PortalClientSettings>('/portal/client', {
         method: 'PUT',

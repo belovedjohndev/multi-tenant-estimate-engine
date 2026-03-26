@@ -12,6 +12,7 @@
     "migrate:lead-notifications": "psql -f db/migrations/002_lead_notifications.sql",
     "migrate:client-portal": "psql -f db/migrations/003_client_portal_auth.sql",
     "migrate:client-settings": "psql -f db/migrations/004_client_settings_onboarding.sql",
+    "migrate:config-versioning": "psql -f db/migrations/005_config_versioning_and_audit.sql",
     "create:client-user": "ts-node src/scripts/createClientPortalUser.ts"
   },
   "dependencies": {

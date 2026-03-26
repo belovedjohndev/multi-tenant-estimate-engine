@@ -4,5 +4,6 @@ export interface Client {
     companyName: string;
     phone?: string;
     notificationEmail?: string;
+    activeConfigVersionId: number;
     createdAt: Date;
 }

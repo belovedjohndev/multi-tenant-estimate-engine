@@ -59,6 +59,10 @@ export interface EstimateResult {
         complexityMultiplier: number;
         discount: number;
     };
+    configVersion: {
+        id: number;
+        versionNumber: number;
+    };
 }
 
 export interface LeadCaptureDetails {
@@ -69,6 +73,7 @@ export interface LeadCaptureDetails {
 
 export interface LeadRequest extends LeadCaptureDetails {
     clientId: string;
+    configVersionId?: number;
     estimateInput: EstimateInput;
     estimateData: EstimateResult;
 }

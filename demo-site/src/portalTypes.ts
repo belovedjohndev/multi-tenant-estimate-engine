@@ -42,6 +42,18 @@ export interface PortalClientSettings {
     logoUrl?: string;
     phone?: string;
     notificationEmail?: string;
+    currentConfigVersion: {
+        id: number;
+        versionNumber: number;
+        createdAt: string;
+    };
+    configHistory: Array<{
+        id: number;
+        versionNumber: number;
+        createdAt: string;
+        isActive: boolean;
+        createdByEmail?: string;
+    }>;
     estimatorConfig: {
         basePrice: number;
         multipliers: {
@@ -65,6 +77,8 @@ export interface PortalLeadsResponse {
         name?: string;
         email: string;
         phone?: string;
+        configVersionId: number;
+        configVersionNumber: number;
         estimateInput?: {
             size?: number;
             complexity?: 'low' | 'medium' | 'high';

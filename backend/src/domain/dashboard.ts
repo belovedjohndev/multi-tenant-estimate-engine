@@ -5,6 +5,8 @@ export interface DashboardLead {
     name?: string;
     email: string;
     phone?: string;
+    configVersionId: number;
+    configVersionNumber: number;
     estimateInput?: EstimateInput;
     estimateData: EstimateResponse;
     createdAt: Date;

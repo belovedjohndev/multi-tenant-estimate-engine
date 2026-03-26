@@ -21,15 +21,17 @@ Multi-tenant estimate and lead capture system for service businesses.
 
 ## Current Milestone
 
-Client settings and onboarding are now supported inside the authenticated portal.
+Pricing config versioning and audit-safe history are now supported inside the authenticated portal.
 
-- Authenticated clients can update company profile data without changing the stable tenant slug.
-- `GET /portal/client` and `PUT /portal/client` are tenant-isolated through portal auth.
-- Pricing config JSON can now be edited from the portal.
-- The public estimator flow still uses the existing `clientId` slug and remains compatible.
+- Estimator pricing now lives in immutable `client_config_versions` rows instead of being overwritten in place.
+- Each client tracks an `active_config_version_id`, and new leads store the exact `config_version_id` used for calculation.
+- The portal only creates a new config version when the pricing JSON meaningfully changes.
+- Lightweight `audit_logs` capture config version creation and activation changes.
+- The public estimator flow still uses the stable `clientId` slug and now resolves estimates from the active config version.
 
 Milestone notes:
 
+- [`docs/milestones/pricing-config-versioning.md`](./docs/milestones/pricing-config-versioning.md)
 - [`docs/milestones/client-settings-onboarding.md`](./docs/milestones/client-settings-onboarding.md)
 - [`docs/milestones/client-dashboard-auth-v1.md`](./docs/milestones/client-dashboard-auth-v1.md)
 - [`docs/milestones/lead-email-notifications.md`](./docs/milestones/lead-email-notifications.md)
@@ -107,7 +109,7 @@ npm run build
 Hosted database migration command:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/001_initial.sql -f backend/db/migrations/002_lead_notifications.sql -f backend/db/migrations/003_client_portal_auth.sql -f backend/db/migrations/004_client_settings_onboarding.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/001_initial.sql -f backend/db/migrations/002_lead_notifications.sql -f backend/db/migrations/003_client_portal_auth.sql -f backend/db/migrations/004_client_settings_onboarding.sql -f backend/db/migrations/005_config_versioning_and_audit.sql
 ```
 
 Incremental migration for an existing deployed database:
@@ -116,6 +118,7 @@ Incremental migration for an existing deployed database:
 psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/002_lead_notifications.sql
 psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/003_client_portal_auth.sql
 psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/004_client_settings_onboarding.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/005_config_versioning_and_audit.sql
 ```
 
 Configure a tenant notification recipient:
@@ -198,11 +201,13 @@ After both deployments are live:
 10. Confirm the configured client inbox receives the new lead notification email.
 11. Sign in to the client portal and confirm the new lead appears in the dashboard.
 12. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
+13. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
+14. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
 
 Example PostgreSQL verification command:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "SELECT id, email, estimate_input, estimate_data->>'total' AS total, created_at FROM leads ORDER BY id DESC LIMIT 10;"
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "SELECT leads.id, leads.email, leads.config_version_id, client_config_versions.version_number, leads.estimate_data->>'total' AS total, leads.created_at FROM leads JOIN client_config_versions ON client_config_versions.id = leads.config_version_id ORDER BY leads.id DESC LIMIT 10;"
 ```
 
 ## Client Portal API
@@ -215,3 +220,9 @@ Authenticated dashboard endpoints:
 - `GET /me/leads?limit=25`
 - `GET /portal/client`
 - `PUT /portal/client`
+
+Pricing versioning notes:
+
+- `GET /client-config?clientId=...` now resolves the active immutable config version for the tenant.
+- `POST /estimate` responses include `configVersion.id` and `configVersion.versionNumber`.
+- `POST /leads` persists the config version used for the estimate.

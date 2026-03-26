@@ -57,6 +57,10 @@ export function parseCreateLeadRequest(body: unknown): CreateLeadRequest {
         request.phone = requireNonEmptyString(parsedBody.phone, 'phone must be a non-empty string', 'invalid_body');
     }
 
+    if (parsedBody.configVersionId !== undefined) {
+        request.configVersionId = requirePositiveInteger(parsedBody.configVersionId, 'configVersionId must be a positive integer');
+    }
+
     return request;
 }
 
@@ -232,6 +236,7 @@ function requireEmail(value: unknown): string {
 function parseEstimateData(value: unknown): EstimateResponse {
     const estimateData = requireObject(value, 'estimateData is required and must be an object');
     const breakdown = requireObject(estimateData.breakdown, 'estimateData.breakdown must be an object');
+    const configVersion = requireObject(estimateData.configVersion, 'estimateData.configVersion is required and must be an object');
 
     return {
         total: requireFiniteNumber(estimateData.total, 'estimateData.total must be a finite number'),
@@ -246,12 +251,27 @@ function parseEstimateData(value: unknown): EstimateResponse {
                 'estimateData.breakdown.complexityMultiplier must be a finite number'
             ),
             discount: requireFiniteNumber(breakdown.discount, 'estimateData.breakdown.discount must be a finite number')
+        },
+        configVersion: {
+            id: requirePositiveInteger(configVersion.id, 'estimateData.configVersion.id must be a positive integer'),
+            versionNumber: requirePositiveInteger(
+                configVersion.versionNumber,
+                'estimateData.configVersion.versionNumber must be a positive integer'
+            )
         }
     };
 }
 
 function requireFiniteNumber(value: unknown, message: string): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new ValidationError(message, 'invalid_body');
+    }
+
+    return value;
+}
+
+function requirePositiveInteger(value: unknown, message: string): number {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
         throw new ValidationError(message, 'invalid_body');
     }
 

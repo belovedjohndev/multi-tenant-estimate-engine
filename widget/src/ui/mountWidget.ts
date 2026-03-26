@@ -202,6 +202,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
         try {
             const response = await submitLead(config, {
                 ...leadInput,
+                configVersionId: currentState.estimateResult.configVersion.id,
                 estimateInput: currentState.estimateInput,
                 estimateData: currentState.estimateResult
             });

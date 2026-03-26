@@ -15,6 +15,11 @@ export interface EstimatorConfig {
     };
 }
 
+export interface EstimateConfigVersionReference {
+    id: number;
+    versionNumber: number;
+}
+
 export interface EstimateResponse {
     total: number;
     breakdown: {
@@ -23,6 +28,7 @@ export interface EstimateResponse {
         complexityMultiplier: number;
         discount: number;
     };
+    configVersion: EstimateConfigVersionReference;
 }
 
 export function parseEstimatorConfigRecord(value: unknown, errorPrefix = 'estimatorConfig'): EstimatorConfig {
@@ -45,7 +51,7 @@ export function parseEstimatorConfigRecord(value: unknown, errorPrefix = 'estima
 export function calculateEstimateFromConfig(
     estimatorConfig: EstimatorConfig,
     input: EstimateInput
-): EstimateResponse {
+): Omit<EstimateResponse, 'configVersion'> {
     let total = estimatorConfig.basePrice;
     let sizeMultiplier = 1;
     let complexityMultiplier = 1;

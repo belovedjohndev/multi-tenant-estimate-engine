@@ -12,6 +12,8 @@ export interface PortalLeadsResult {
         name?: string;
         email: string;
         phone?: string;
+        configVersionId: number;
+        configVersionNumber: number;
         estimateInput?: {
             size?: number;
             complexity?: 'low' | 'medium' | 'high';
@@ -56,6 +58,8 @@ function mapLead(lead: DashboardLead): PortalLeadsResult['leads'][number] {
         name: lead.name,
         email: lead.email,
         phone: lead.phone,
+        configVersionId: lead.configVersionId,
+        configVersionNumber: lead.configVersionNumber,
         estimateInput: lead.estimateInput,
         estimateData: lead.estimateData,
         createdAt: lead.createdAt.toISOString()

@@ -22,7 +22,11 @@ router.put('/client', requirePortalAuth, async (req: Request, res: Response, nex
     try {
         const request = req as AuthenticatedPortalRequest;
         const body = parsePortalClientSettingsUpdate(req.body);
-        const updatedSettings = await updatePortalClientSettings(request.portalSession.client.id, body);
+        const updatedSettings = await updatePortalClientSettings(
+            request.portalSession.client.id,
+            body,
+            request.portalSession.user.id
+        );
         return sendSuccess(res, updatedSettings);
     } catch (error) {
         return next(error);

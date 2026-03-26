@@ -274,6 +274,7 @@ function renderLeadCard(lead: PortalLeadsResponse['leads'][number]): string {
                     'Complexity',
                     lead.estimateInput?.complexity ? lead.estimateInput.complexity.toUpperCase() : 'N/A'
                 )}
+                ${renderLeadBadge('Config', `v${lead.configVersionNumber}`)}
                 ${renderLeadBadge('Size', lead.estimateInput?.size !== undefined ? String(lead.estimateInput.size) : 'N/A')}
                 ${renderLeadBadge('Bulk', lead.estimateInput?.bulk === true ? 'Yes' : lead.estimateInput?.bulk === false ? 'No' : 'N/A')}
             </div>
@@ -299,6 +300,21 @@ function renderEmptyLeads(): string {
 function renderSettingsPanel(settings: PortalClientSettings): string {
     const estimatorConfigJson = JSON.stringify(settings.estimatorConfig, null, 2);
     const settingsMessage = state.portal.settingsMessage;
+    const historyMarkup = settings.configHistory.length
+        ? settings.configHistory
+              .map(
+                  (entry) => `
+                    <li class="history-item">
+                        <span class="history-item__version">${escapeHtml(`v${entry.versionNumber}`)}</span>
+                        <span class="history-item__meta">${escapeHtml(formatDateTime(entry.createdAt))}${
+                            entry.createdByEmail ? ` by ${escapeHtml(entry.createdByEmail)}` : ''
+                        }</span>
+                        ${entry.isActive ? '<span class="history-item__active">Active</span>' : ''}
+                    </li>
+                `
+              )
+              .join('')
+        : '<li class="history-item">No config history yet.</li>';
 
     return `
         <section class="settings-panel">
@@ -312,6 +328,11 @@ function renderSettingsPanel(settings: PortalClientSettings): string {
             <p class="surface-copy">
                 Update company profile data and the pricing JSON that drives the estimator without changing the stable tenant ID.
             </p>
+            <div class="settings-version-card">
+                <p class="metric-label">Current Config Version</p>
+                <p class="settings-version-card__value">v${escapeHtml(String(settings.currentConfigVersion.versionNumber))}</p>
+                <p class="settings-version-card__meta">Activated ${escapeHtml(formatDateTime(settings.currentConfigVersion.createdAt))}</p>
+            </div>
             ${settingsMessage ? `<p class="portal-feedback portal-feedback--success">${escapeHtml(settingsMessage)}</p>` : ''}
             <form id="portal-settings-form" class="portal-form">
                 <div class="settings-grid">
@@ -338,6 +359,15 @@ function renderSettingsPanel(settings: PortalClientSettings): string {
                 </label>
                 <button class="primary-button" type="submit">${state.portal.isSavingSettings ? 'Saving...' : 'Save Settings'}</button>
             </form>
+            <div class="settings-history">
+                <div class="settings-history__header">
+                    <p class="card-label">Config History</p>
+                    <p class="surface-meta">Recent immutable versions</p>
+                </div>
+                <ul class="history-list">
+                    ${historyMarkup}
+                </ul>
+            </div>
         </section>
     `;
 }

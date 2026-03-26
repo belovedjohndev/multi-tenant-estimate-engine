@@ -10,6 +10,8 @@ export interface ClientConfigurationResult {
         fontFamily?: string;
     } | null;
     config: {
+        id: number;
+        versionNumber: number;
         estimatorConfig: EstimatorConfig;
     };
 }
@@ -35,6 +37,8 @@ export async function getClientConfig(clientId: string): Promise<ClientConfigura
               }
             : null,
         config: {
+            id: clientConfiguration.config.id,
+            versionNumber: clientConfiguration.config.versionNumber,
             estimatorConfig: clientConfiguration.config.estimatorConfig
         }
     };

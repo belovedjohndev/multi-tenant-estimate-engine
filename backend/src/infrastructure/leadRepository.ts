@@ -4,6 +4,7 @@ import { pool } from './database';
 
 export interface NewLeadRecord {
     clientId: number;
+    configVersionId: number;
     name?: string;
     email: string;
     phone?: string;
@@ -20,6 +21,8 @@ interface DashboardLeadRow {
     name: string | null;
     email: string;
     phone: string | null;
+    config_version_id: number;
+    config_version_number: number;
     estimate_input: unknown;
     estimate_data: unknown;
     created_at: Date;
@@ -33,8 +36,8 @@ interface DashboardLeadSummaryRow {
 
 export async function insertLead(record: NewLeadRecord): Promise<number> {
     const insertRes = await pool.query<InsertLeadRow>(
-        'INSERT INTO leads (client_id, name, email, phone, estimate_input, estimate_data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-        [record.clientId, record.name, record.email, record.phone, record.estimateInput, record.estimateData]
+        'INSERT INTO leads (client_id, config_version_id, name, email, phone, estimate_input, estimate_data) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+        [record.clientId, record.configVersionId, record.name, record.email, record.phone, record.estimateInput, record.estimateData]
     );
 
     return insertRes.rows[0].id;
@@ -42,10 +45,20 @@ export async function insertLead(record: NewLeadRecord): Promise<number> {
 
 export async function listDashboardLeadsByClientId(clientId: number, limit: number): Promise<DashboardLead[]> {
     const result = await pool.query<DashboardLeadRow>(
-        `SELECT id, name, email, phone, estimate_input, estimate_data, created_at
+        `SELECT
+             leads.id,
+             leads.name,
+             leads.email,
+             leads.phone,
+             leads.config_version_id,
+             client_config_versions.version_number AS config_version_number,
+             leads.estimate_input,
+             leads.estimate_data,
+             leads.created_at
          FROM leads
-         WHERE client_id = $1
-         ORDER BY created_at DESC
+         JOIN client_config_versions ON client_config_versions.id = leads.config_version_id
+         WHERE leads.client_id = $1
+         ORDER BY leads.created_at DESC
          LIMIT $2`,
         [clientId, limit]
     );
@@ -79,8 +92,13 @@ function mapDashboardLeadRow(row: DashboardLeadRow): DashboardLead {
         name: row.name ?? undefined,
         email: row.email,
         phone: row.phone ?? undefined,
+        configVersionId: row.config_version_id,
+        configVersionNumber: row.config_version_number,
         estimateInput: row.estimate_input ? parseEstimateInput(row.estimate_input) : undefined,
-        estimateData: parseEstimateData(row.estimate_data),
+        estimateData: parseEstimateData(row.estimate_data, {
+            id: row.config_version_id,
+            versionNumber: row.config_version_number
+        }),
         createdAt: row.created_at
     };
 }
@@ -110,9 +128,13 @@ function parseEstimateInput(value: unknown): EstimateInput {
     return parsedInput;
 }
 
-function parseEstimateData(value: unknown): EstimateResponse {
+function parseEstimateData(
+    value: unknown,
+    fallbackConfigVersion: { id: number; versionNumber: number }
+): EstimateResponse {
     const estimateData = requireObject(value, 'lead.estimate_data must be an object');
     const breakdown = requireObject(estimateData.breakdown, 'lead.estimate_data.breakdown must be an object');
+    const configVersion = isRecord(estimateData.configVersion) ? estimateData.configVersion : null;
 
     return {
         total: requireNumber(estimateData.total, 'lead.estimate_data.total must be a number'),
@@ -127,6 +149,18 @@ function parseEstimateData(value: unknown): EstimateResponse {
                 'lead.estimate_data.breakdown.complexityMultiplier must be a number'
             ),
             discount: requireNumber(breakdown.discount, 'lead.estimate_data.breakdown.discount must be a number')
+        },
+        configVersion: {
+            id:
+                configVersion && typeof configVersion.id === 'number' && Number.isFinite(configVersion.id)
+                    ? configVersion.id
+                    : fallbackConfigVersion.id,
+            versionNumber:
+                configVersion &&
+                typeof configVersion.versionNumber === 'number' &&
+                Number.isFinite(configVersion.versionNumber)
+                    ? configVersion.versionNumber
+                    : fallbackConfigVersion.versionNumber
         }
     };
 }
@@ -137,6 +171,10 @@ function requireObject(value: unknown, message: string): Record<string, unknown>
     }
 
     return value as Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function requireNumber(value: unknown, message: string): number {
