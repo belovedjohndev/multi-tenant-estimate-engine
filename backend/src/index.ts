@@ -1,4 +1,5 @@
 import express from 'express';
+import { Server } from 'node:http';
 import { authModule } from './modules/auth';
 import { clientConfigModule } from './modules/clientConfig';
 import { leadsModule } from './modules/leads';
@@ -7,51 +8,58 @@ import { estimateModule } from './modules/estimate';
 import { errorHandler, notFoundHandler } from './http/api';
 import { verifyDatabaseConnection } from './infrastructure/database';
 
-const app = express();
-const allowedOrigins = getAllowedOrigins();
+export function createApp() {
+    const app = express();
+    const allowedOrigins = getAllowedOrigins();
 
-app.use((req, res, next) => {
-    const requestOrigin = req.header('Origin');
+    app.use((req, res, next) => {
+        const requestOrigin = req.header('Origin');
 
-    if (requestOrigin && allowedOrigins.has(requestOrigin)) {
-        res.header('Access-Control-Allow-Origin', requestOrigin);
-        res.header('Vary', 'Origin');
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type');
-    }
+        if (requestOrigin && allowedOrigins.has(requestOrigin)) {
+            res.header('Access-Control-Allow-Origin', requestOrigin);
+            res.header('Vary', 'Origin');
+            res.header('Access-Control-Allow-Credentials', 'true');
+            res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+            res.header('Access-Control-Allow-Headers', 'Content-Type');
+        }
 
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(204);
+        }
 
-    return next();
-});
-app.use(express.json());
+        return next();
+    });
+    app.use(express.json());
 
-app.use('/client-config', clientConfigModule);
-app.use('/leads', leadsModule);
-app.use('/estimate', estimateModule);
-app.use('/auth', authModule);
-app.use('/me', portalModule);
-app.use('/portal', portalModule);
-app.use(notFoundHandler);
-app.use(errorHandler);
+    app.use('/client-config', clientConfigModule);
+    app.use('/leads', leadsModule);
+    app.use('/estimate', estimateModule);
+    app.use('/auth', authModule);
+    app.use('/me', portalModule);
+    app.use('/portal', portalModule);
+    app.use(notFoundHandler);
+    app.use(errorHandler);
+
+    return app;
+}
 
 const port = process.env.PORT || 3000;
 
-async function start() {
+export async function start(): Promise<Server> {
     await verifyDatabaseConnection();
+    const app = createApp();
 
-    app.listen(port, () => {
+    return app.listen(port, () => {
         console.log(`Estimator Engine Backend running on port ${port}`);
     });
 }
 
-start().catch((error) => {
-    console.error('Failed to start backend', error);
-    process.exit(1);
-});
+if (require.main === module) {
+    start().catch((error) => {
+        console.error('Failed to start backend', error);
+        process.exit(1);
+    });
+}
 
 function getAllowedOrigins(): Set<string> {
     const configuredOrigins = [process.env.WIDGET_ORIGIN, process.env.PORTAL_ORIGIN]

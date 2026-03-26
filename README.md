@@ -23,16 +23,17 @@ Multi-tenant estimate and lead capture system for service businesses.
 
 ## Current Milestone
 
-The portal now uses server-managed HttpOnly cookie auth instead of browser-stored bearer tokens.
+The backend now has deterministic automated tests covering the highest-risk multi-tenant portal and pricing flows.
 
-- `POST /auth/login` sets an HttpOnly session cookie backed by existing server-side session persistence.
-- `POST /auth/logout` revokes the server session and clears the cookie.
-- `GET /auth/me` is now the source of truth for portal auth state.
-- `portal-site` now authenticates with `credentials: "include"` and no longer stores auth tokens in browser storage.
-- Backend CORS now supports credentialed requests from the configured `PORTAL_ORIGIN`.
+- Added backend integration tests for login, logout, `/auth/me`, and protected portal access.
+- Added backend coverage for immutable pricing config versioning rules, including unchanged-vs-changed save behavior.
+- Added backend coverage for lead capture storing `config_version_id`.
+- Added backend coverage for tenant isolation across leads and client settings.
+- Tests replay the real migration SQL into a deterministic pg-compatible in-memory database so the coverage stays close to production schema behavior.
 
 Milestone notes:
 
+- [`docs/milestones/backend-critical-flow-tests.md`](./docs/milestones/backend-critical-flow-tests.md)
 - [`docs/milestones/http-only-cookie-auth.md`](./docs/milestones/http-only-cookie-auth.md)
 - [`docs/milestones/portal-site-split.md`](./docs/milestones/portal-site-split.md)
 - [`docs/milestones/pricing-config-versioning.md`](./docs/milestones/pricing-config-versioning.md)
@@ -127,6 +128,7 @@ Build verification command:
 cd backend
 npm install
 npm run build
+npm test
 ```
 
 Hosted database migration command:
@@ -286,6 +288,32 @@ Pricing versioning notes:
 - `GET /client-config?clientId=...` now resolves the active immutable config version for the tenant.
 - `POST /estimate` responses include `configVersion.id` and `configVersion.versionNumber`.
 - `POST /leads` persists the config version used for the estimate.
+
+## Backend Tests
+
+Run the backend test suite:
+
+```powershell
+cd backend
+npm install
+npm test
+```
+
+Current automated coverage:
+
+- `POST /auth/login`, `GET /auth/me`, and `POST /auth/logout`
+- unauthenticated rejection for protected portal routes
+- pricing config version creation rules
+- unchanged pricing saves not creating a new config version
+- changed pricing saves creating a new active config version
+- lead creation storing `config_version_id`
+- tenant isolation for leads and client settings
+
+Test design notes:
+
+- The suite uses the real SQL migration files from `backend/db/migrations/`.
+- Tests run against a deterministic pg-compatible in-memory database via `pg-mem`.
+- The backend app is instantiated per test, and test data is reseeded each time to keep flows isolated and repeatable.
 
 ## Cookie Auth Notes
 

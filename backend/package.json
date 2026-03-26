@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
+    "test": "node --test -r ts-node/register src/test/backendFlows.test.ts",
     "migrate": "psql -f db/migrations/001_initial.sql",
     "migrate:bootstrap": "psql -f db/migrations/001_initial.sql -f db/migrations/002_lead_notifications.sql",
     "migrate:lead-notifications": "psql -f db/migrations/002_lead_notifications.sql",
@@ -23,6 +24,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.0",
     "@types/pg": "^8.10.9",
+    "pg-mem": "^3.0.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

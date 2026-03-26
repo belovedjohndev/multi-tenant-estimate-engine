@@ -188,13 +188,21 @@ export async function updateClientSettings(
             [settings.companyName, settings.phone ?? null, settings.notificationEmail ?? null, clientId]
         );
 
-        await connection.query(
-            `INSERT INTO client_branding (client_id, logo_url)
-             VALUES ($1, $2)
-             ON CONFLICT (client_id)
-             DO UPDATE SET logo_url = EXCLUDED.logo_url`,
+        const brandingUpdateRes = await connection.query<{ id: number }>(
+            `UPDATE client_branding
+             SET logo_url = $2
+             WHERE client_id = $1
+             RETURNING id`,
             [clientId, settings.logoUrl ?? null]
         );
+
+        if (!brandingUpdateRes.rowCount) {
+            await connection.query(
+                `INSERT INTO client_branding (client_id, logo_url)
+                 VALUES ($1, $2)`,
+                [clientId, settings.logoUrl ?? null]
+            );
+        }
 
         if (configChanged) {
             const nextVersionRes = await connection.query<{ next_version_number: string }>(
