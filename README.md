@@ -8,29 +8,31 @@ Multi-tenant estimate and lead capture system for service businesses.
 - PostgreSQL
 - Reusable widget
 - Vite demo-site
+- Vite portal-site
 - Resend-backed lead notification emails
 
 ## Project Structure
 
 - `backend/` - API, application layer, domain, and persistence
 - `widget/` - embeddable estimate widget
-- `demo-site/` - owned demo host for the widget
+- `demo-site/` - public-only demo and showcase host for the widget
+- `portal-site/` - authenticated client portal frontend
 - `docs/` - milestone notes and implementation documentation
 - `render.yaml` - Render backend deployment config
 - `vercel.json` - Vercel demo-site deployment config
 
 ## Current Milestone
 
-Pricing config versioning and audit-safe history are now supported inside the authenticated portal.
+The authenticated client portal has been split into a dedicated `portal-site` frontend app.
 
-- Estimator pricing now lives in immutable `client_config_versions` rows instead of being overwritten in place.
-- Each client tracks an `active_config_version_id`, and new leads store the exact `config_version_id` used for calculation.
-- The portal only creates a new config version when the pricing JSON meaningfully changes.
-- Lightweight `audit_logs` capture config version creation and activation changes.
-- The public estimator flow still uses the stable `clientId` slug and now resolves estimates from the active config version.
+- `demo-site` is now public-only and hosts the embeddable estimator demo.
+- `portal-site` now owns login, dashboard, client settings, pricing config editing, config version history, and logout.
+- Backend API contracts are unchanged, so both frontends continue using the existing endpoints.
+- Portal auth token persistence is isolated in a dedicated module to make a future move to HttpOnly cookie auth easier.
 
 Milestone notes:
 
+- [`docs/milestones/portal-site-split.md`](./docs/milestones/portal-site-split.md)
 - [`docs/milestones/pricing-config-versioning.md`](./docs/milestones/pricing-config-versioning.md)
 - [`docs/milestones/client-settings-onboarding.md`](./docs/milestones/client-settings-onboarding.md)
 - [`docs/milestones/client-dashboard-auth-v1.md`](./docs/milestones/client-dashboard-auth-v1.md)
@@ -57,6 +59,17 @@ Demo-site:
 cd demo-site
 $env:VITE_API_BASE_URL="http://localhost:3000"
 $env:VITE_CLIENT_ID="demo"
+npm install
+npm run dev
+```
+
+Portal-site:
+
+```powershell
+cd portal-site
+$env:VITE_API_BASE_URL="http://localhost:3000"
+$env:VITE_DEFAULT_CLIENT_ID="demo"
+$env:VITE_PORTAL_TITLE="Estimate Engine Client Portal"
 npm install
 npm run dev
 ```
@@ -149,6 +162,8 @@ Vercel config from `vercel.json`:
 - builds `demo-site/`
 - serves `demo-site/dist`
 
+This app is intentionally public-only and should be used as the sales/demo surface plus sample widget host.
+
 Required Vercel environment variables:
 
 - `VITE_API_BASE_URL`
@@ -185,24 +200,57 @@ npm install
 npm run build
 ```
 
+## Portal-Site Deployment
+
+Deploy `portal-site/` as a separate frontend project.
+
+Suggested project settings:
+
+- root directory: `portal-site`
+- install command: `npm install`
+- build command: `npm run build`
+- output directory: `dist`
+
+Required environment variables:
+
+- `VITE_API_BASE_URL`
+
+Recommended environment variables:
+
+- `VITE_DEFAULT_CLIENT_ID=demo`
+- `VITE_PORTAL_TITLE=Estimate Engine Client Portal`
+
+Local production-style build verification:
+
+```powershell
+cd portal-site
+$env:VITE_API_BASE_URL="http://localhost:3000"
+$env:VITE_DEFAULT_CLIENT_ID="demo"
+$env:VITE_PORTAL_TITLE="Estimate Engine Client Portal"
+npm install
+npm run build
+```
+
 ## Public Smoke Test
 
 After both deployments are live:
 
 1. Open the deployed demo-site URL.
-2. Confirm the launcher button is visible.
-3. Open the widget.
-4. Confirm the estimate form loads without errors.
-5. Submit an estimate and confirm the result renders.
-6. Continue to the lead form and submit a lead.
-7. Confirm the success state renders.
-8. Confirm the browser can call `GET /client-config?clientId=demo` successfully.
-9. Confirm the new lead exists in PostgreSQL.
-10. Confirm the configured client inbox receives the new lead notification email.
-11. Sign in to the client portal and confirm the new lead appears in the dashboard.
-12. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
-13. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
-14. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
+2. Confirm only the public estimator/demo content is shown there.
+3. Confirm the launcher button is visible.
+4. Open the widget.
+5. Confirm the estimate form loads without errors.
+6. Submit an estimate and confirm the result renders.
+7. Continue to the lead form and submit a lead.
+8. Confirm the success state renders.
+9. Confirm the browser can call `GET /client-config?clientId=demo` successfully.
+10. Confirm the new lead exists in PostgreSQL.
+11. Confirm the configured client inbox receives the new lead notification email.
+12. Open the deployed portal-site URL and sign in there.
+13. Confirm the new lead appears in the dashboard.
+14. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
+15. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
+16. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
 
 Example PostgreSQL verification command:
 

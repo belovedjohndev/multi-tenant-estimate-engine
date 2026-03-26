@@ -1,4 +1,4 @@
-import { demoConfig } from './demoConfig';
+import { portalConfig } from './portalConfig';
 import {
     ApiErrorResponse,
     PortalClientSettings,
@@ -90,7 +90,7 @@ async function requestPortalApi<T>(
         headers?: Record<string, string>;
     }
 ): Promise<T> {
-    const response = await fetch(`${demoConfig.apiBaseUrl}${path}`, {
+    const response = await fetch(`${portalConfig.apiBaseUrl}${path}`, {
         method: init.method,
         body: init.body,
         headers: {
