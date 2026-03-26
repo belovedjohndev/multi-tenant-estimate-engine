@@ -2,5 +2,23 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/pricing",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/refund",
+      "destination": "/index.html"
+    }
+  ]
 }
