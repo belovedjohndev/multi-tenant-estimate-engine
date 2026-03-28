@@ -218,10 +218,10 @@ function buildHomeMarkup(): string {
             </div>
             <aside class="hero-note">
                 <p class="card-label">How It Works</p>
-                <h2>Public estimate experience, branded example, private dashboard.</h2>
+                <h2>Public estimate experience, brand-ready setup, private dashboard.</h2>
                 <p class="surface-copy">
-                    Show the public estimate experience under Estimate Engine branding, preview a branded customer
-                    example with icthvac.com, and keep company management in a private dashboard.
+                    Show the public estimate experience under Estimate Engine branding, preview how it can match a
+                    customer's brand, and keep company management in a private dashboard.
                 </p>
             </aside>
         </section>
@@ -258,7 +258,7 @@ function buildHomeMarkup(): string {
                 <div class="portal-pill-row" aria-label="Portal context">
                     <span class="hero-pill">Public website view</span>
                     <span class="hero-pill">Private dashboard</span>
-                    <span class="hero-pill">Branded example: icthvac.com</span>
+                    <span class="hero-pill">Brand-ready setup</span>
                 </div>
                 <figure class="portal-shot">
                     <img
@@ -277,7 +277,7 @@ function buildHomeMarkup(): string {
                     </div>
                     <div class="feature-item">
                         <h3>Brand-ready setup</h3>
-                        <p>icthvac.com shows how the estimate experience can match a customer brand while keeping the same product workflow.</p>
+                        <p>The estimate experience can be styled to match a customer's brand while keeping the same product workflow.</p>
                     </div>
                 </div>
             </article>

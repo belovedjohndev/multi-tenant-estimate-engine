@@ -23,6 +23,7 @@ interface AppState {
         settingsMessage: string | null;
         isSavingSettings: boolean;
         isResettingDemo: boolean;
+        isResetDialogOpen: boolean;
         loginForm: {
             clientId: string;
             email: string;
@@ -59,6 +60,7 @@ const state: AppState = {
         settingsMessage: null,
         isSavingSettings: false,
         isResettingDemo: false,
+        isResetDialogOpen: false,
         loginForm: {
             clientId: portalConfig.defaultClientId,
             email: '',
@@ -96,6 +98,7 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             settingsMessage: null,
             isSavingSettings: false,
             isResettingDemo: false,
+            isResetDialogOpen: false,
             loginForm: {
                 ...state.portal.loginForm,
                 password: '',
@@ -118,6 +121,7 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             settingsMessage: null,
             isSavingSettings: false,
             isResettingDemo: false,
+            isResetDialogOpen: false,
             loginForm: {
                 ...state.portal.loginForm,
                 password: '',
@@ -149,6 +153,7 @@ function renderApp() {
             </section>
             ${renderPortalSurface()}
         </div>
+        ${renderResetDialog()}
     `;
 
     wirePortalEvents();
@@ -221,6 +226,7 @@ function renderPortalLoading(status: PortalStatus): string {
 
 function renderLoginForm(): string {
     const { clientId, email, password, showPassword } = state.portal.loginForm;
+    const demoAccess = portalConfig.demoAccess;
 
     return `
         <form id="portal-login-form" class="portal-form">
@@ -267,6 +273,23 @@ function renderLoginForm(): string {
             </label>
             <button class="primary-button" type="submit">Sign In</button>
         </form>
+        <div class="demo-access-card">
+            <div class="demo-access-card__header">
+                <div>
+                    <p class="card-label">Demo Access</p>
+                    <h3>Testing credentials</h3>
+                </div>
+                <button class="secondary-button" type="button" id="portal-fill-demo-button">Use Demo Access</button>
+            </div>
+            <p class="surface-copy">
+                Use these shared credentials for demo and testing.
+            </p>
+            <div class="demo-access-grid">
+                ${renderDemoAccessItem('Company ID', portalConfig.defaultClientId)}
+                ${renderDemoAccessItem('Email', demoAccess.email)}
+                ${renderDemoAccessItem('Password', demoAccess.password)}
+            </div>
+        </div>
     `;
 }
 
@@ -288,7 +311,7 @@ function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, set
                             demoResetAvailable
                                 ? `<button class="secondary-button secondary-button--danger" type="button" id="portal-reset-demo-button" ${
                                       state.portal.isResettingDemo ? 'disabled' : ''
-                                  }>${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo'}</button>`
+                                  }>${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo Data'}</button>`
                                 : ''
                         }
                         <button class="secondary-button" type="button" id="portal-logout-button">Sign Out</button>
@@ -325,6 +348,43 @@ function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, set
                 </div>
             </div>
         </section>
+    `;
+}
+
+function renderDemoAccessItem(label: string, value: string): string {
+    return `
+        <div class="demo-access-item">
+            <span class="demo-access-item__label">${escapeHtml(label)}</span>
+            <strong class="demo-access-item__value">${escapeHtml(value)}</strong>
+        </div>
+    `;
+}
+
+function renderResetDialog(): string {
+    if (!state.portal.isResetDialogOpen) {
+        return '';
+    }
+
+    return `
+        <div class="portal-dialog-backdrop" id="portal-reset-dialog-backdrop">
+            <section class="portal-dialog" role="dialog" aria-modal="true" aria-labelledby="portal-reset-dialog-title">
+                <p class="card-label">Reset Demo Data</p>
+                <h2 id="portal-reset-dialog-title">Start fresh for the next walkthrough?</h2>
+                <p class="surface-copy">
+                    This clears recent requests and restores the shared demo company settings so the dashboard is ready for the next client review.
+                </p>
+                <div class="portal-dialog__actions">
+                    <button class="secondary-button" type="button" id="portal-reset-dialog-cancel" ${
+                        state.portal.isResettingDemo ? 'disabled' : ''
+                    }>Keep Current Data</button>
+                    <button class="primary-button secondary-button--danger-solid" type="button" id="portal-reset-dialog-confirm" ${
+                        state.portal.isResettingDemo ? 'disabled' : ''
+                    }>
+                        ${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo Data'}
+                    </button>
+                </div>
+            </section>
+        </div>
     `;
 }
 
@@ -499,10 +559,25 @@ function wirePortalEvents() {
                     settingsMessage: null,
                     isSavingSettings: false,
                     isResettingDemo: false,
+                    isResetDialogOpen: false,
                     loginForm: state.portal.loginForm
                 };
                 renderApp();
             }
+        });
+    }
+
+    const fillDemoButton = document.getElementById('portal-fill-demo-button');
+
+    if (fillDemoButton instanceof HTMLButtonElement) {
+        fillDemoButton.addEventListener('click', () => {
+            state.portal.loginForm = {
+                ...state.portal.loginForm,
+                clientId: portalConfig.defaultClientId,
+                email: portalConfig.demoAccess.email,
+                password: portalConfig.demoAccess.password
+            };
+            renderApp();
         });
     }
 
@@ -517,20 +592,42 @@ function wirePortalEvents() {
     const resetDemoButton = document.getElementById('portal-reset-demo-button');
 
     if (resetDemoButton instanceof HTMLButtonElement) {
-        resetDemoButton.addEventListener('click', async () => {
+        resetDemoButton.addEventListener('click', () => {
             if (!isDemoResetAvailable(state.portal.session)) {
                 return;
             }
 
-            const resetWasConfirmed = window.confirm(
-                'Reset the shared demo? This clears recent requests and restores the default demo company settings.'
-            );
+            state.portal.isResetDialogOpen = true;
+            renderApp();
+        });
+    }
 
-            if (!resetWasConfirmed) {
-                return;
+    const resetDialogCancelButton = document.getElementById('portal-reset-dialog-cancel');
+
+    if (resetDialogCancelButton instanceof HTMLButtonElement) {
+        resetDialogCancelButton.addEventListener('click', () => {
+            state.portal.isResetDialogOpen = false;
+            renderApp();
+        });
+    }
+
+    const resetDialogBackdrop = document.getElementById('portal-reset-dialog-backdrop');
+
+    if (resetDialogBackdrop instanceof HTMLDivElement) {
+        resetDialogBackdrop.addEventListener('click', (event) => {
+            if (event.target === resetDialogBackdrop && !state.portal.isResettingDemo) {
+                state.portal.isResetDialogOpen = false;
+                renderApp();
             }
+        });
+    }
 
+    const resetDialogConfirmButton = document.getElementById('portal-reset-dialog-confirm');
+
+    if (resetDialogConfirmButton instanceof HTMLButtonElement) {
+        resetDialogConfirmButton.addEventListener('click', async () => {
             state.portal.isResettingDemo = true;
+            state.portal.isResetDialogOpen = true;
             state.portal.errorMessage = null;
             state.portal.settingsMessage = null;
             renderApp();
@@ -541,10 +638,12 @@ function wirePortalEvents() {
 
                 if (state.portal.status === 'ready') {
                     state.portal.settingsMessage = 'Demo reset complete.';
+                    state.portal.isResetDialogOpen = false;
                     renderApp();
                 }
             } catch (error) {
                 state.portal.isResettingDemo = false;
+                state.portal.isResetDialogOpen = false;
                 state.portal.errorMessage = getErrorMessage(error, 'Unable to reset the demo dashboard.');
                 renderApp();
             }
@@ -570,6 +669,7 @@ function wirePortalEvents() {
                 settingsMessage: null,
                 isSavingSettings: false,
                 isResettingDemo: false,
+                isResetDialogOpen: false,
                 loginForm: {
                     ...state.portal.loginForm,
                     password: '',
