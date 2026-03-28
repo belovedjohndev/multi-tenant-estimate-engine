@@ -14,6 +14,10 @@ export function renderErrorState(options: ErrorStateOptions): HTMLElement {
         className: 'ee-panel-title',
         textContent: 'We could not complete that step.'
     });
+    const helper = createElement('p', {
+        className: 'ee-step-helper ee-step-helper--error',
+        textContent: 'You can retry this step or close the estimator for now.'
+    });
     const description = createElement('p', {
         className: 'ee-panel-copy',
         textContent: options.message
@@ -35,7 +39,7 @@ export function renderErrorState(options: ErrorStateOptions): HTMLElement {
     closeButton.addEventListener('click', options.onClose);
 
     appendChildren(actions, retryButton, closeButton);
-    appendChildren(wrapper, eyebrow, title, description, actions);
+    appendChildren(wrapper, eyebrow, title, helper, description, actions);
 
     return wrapper;
 }

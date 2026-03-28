@@ -21,10 +21,11 @@ if (!(appRoot instanceof HTMLElement)) {
 }
 
 const rootElement: HTMLElement = appRoot;
-
 let mountedWidget: MountedWidget | null = null;
 let currentWidgetHost: HTMLElement | null = null;
-const supportEmailPlaceholder = '[REPLACE WITH SUPPORT EMAIL BEFORE LAUNCH]';
+const supportEmail = 'support@belovedjohndev.com';
+const helloEmail = 'hello@belovedjohndev.com';
+const billingEmail = 'billing@belovedjohndev.com';
 
 const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     '/pricing': {
@@ -42,6 +43,10 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
                     'Pricing configuration',
                     'Cancel anytime'
                 ]
+            },
+            {
+                heading: 'Contact',
+                paragraphs: [`General inquiries: ${helloEmail}`]
             }
         ]
     },
@@ -81,7 +86,7 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
             },
             {
                 heading: 'Contact',
-                paragraphs: [`Support email: ${supportEmailPlaceholder}`]
+                paragraphs: [`Support email: ${supportEmail}`]
             }
         ]
     },
@@ -113,7 +118,7 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
             },
             {
                 heading: 'Contact',
-                paragraphs: [`Support email: ${supportEmailPlaceholder}`]
+                paragraphs: [`Support email: ${supportEmail}`]
             }
         ]
     },
@@ -137,7 +142,7 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
             },
             {
                 heading: 'Contact',
-                paragraphs: [`Support email: ${supportEmailPlaceholder}`]
+                paragraphs: [`Billing email: ${billingEmail}`]
             }
         ]
     }
@@ -200,23 +205,23 @@ function buildHomeMarkup(): string {
         <section class="hero">
             <div class="hero-copy-block">
                 <p class="eyebrow">Estimate Engine SaaS</p>
-                <h1>Public estimator demo for the lead capture side of the product.</h1>
+                <h1>Public demo powered by the real embeddable widget.</h1>
                 <p class="hero-copy">
-                    This site is public-only. It showcases the embeddable estimator experience that a client would
-                    place on their website while the authenticated operations surface lives in the separate portal app.
+                    The homepage now mounts the actual TypeScript widget again, using Estimate Engine branding and
+                    the live API-backed widget flow that ships with the platform.
                 </p>
                 <div class="hero-pill-row">
                     <span class="hero-pill">Tenant: ${escapeHtml(demoConfig.clientId)}</span>
-                    <span class="hero-pill">Public widget host</span>
-                    <span class="hero-pill">Estimator + lead capture</span>
+                    <span class="hero-pill">API base: ${escapeHtml(demoConfig.apiBaseUrl)}</span>
+                    <span class="hero-pill">Live API-backed widget</span>
                 </div>
             </div>
             <aside class="hero-note">
-                <p class="card-label">Product Shape</p>
-                <h2>Demo site stays public.</h2>
+                <p class="card-label">Best Move</p>
+                <h2>Real widget code, improved design.</h2>
                 <p class="surface-copy">
-                    Client login, dashboard, settings, and config history live in the dedicated
-                    <code>portal-site</code> frontend so this app can stay focused on conversion and lead intake.
+                    This keeps the product on the current backend contract while moving the real widget closer to the
+                    polished modal style from the copied bundle you wanted to reuse.
                 </p>
             </aside>
         </section>
@@ -225,43 +230,68 @@ function buildHomeMarkup(): string {
             <article class="surface-card">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Estimator Demo</p>
-                        <h2>Lead capture flow</h2>
+                        <p class="card-label">Live Widget</p>
+                        <h2>Actual product flow</h2>
                     </div>
-                    <p class="surface-meta">Uses ${escapeHtml(demoConfig.clientId)} config</p>
+                    <p class="surface-meta">Mounted from /widget/src</p>
                 </div>
                 <p class="surface-copy">
-                    Prospects can calculate an estimate, submit contact details, and enter the production lead flow
-                    without seeing any client-only portal controls.
+                    This card mounts the real widget implementation against the live API so the demo reflects the code
+                    that actually ships with the platform.
                 </p>
                 <div class="widget-zone">
-                    <div id="widget-root"></div>
+                    <div class="widget-preview-shell">
+                        <div id="widget-root"></div>
+                    </div>
                 </div>
             </article>
             <article class="surface-card surface-card--guide">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">What Moved</p>
-                        <h2>Client operations now live elsewhere</h2>
+                        <p class="card-label">What Changed</p>
+                        <h2>Why this is the stronger path</h2>
                     </div>
                 </div>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Portal authentication</h3>
-                        <p>Dedicated sign-in now belongs to <code>portal-site</code>, not the public demo.</p>
+                        <h3>Real API contract</h3>
+                        <p>The homepage widget now uses the current backend endpoints and payloads instead of a mock compatibility layer.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Lead dashboard</h3>
-                        <p>Recent leads, estimate totals, and activity stay inside the authenticated app.</p>
+                        <h3>UI port in progress</h3>
+                        <p>The real widget now borrows the stronger launcher, modal, and panel styling ideas from the copied bundle.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Client settings</h3>
-                        <p>Company profile, notification email, pricing config, and config history are portal-only.</p>
+                        <h3>Estimate Engine branded</h3>
+                        <p>The demo widget now uses your own name, colors, and logo instead of exposing client-specific branding.</p>
                     </div>
                 </div>
             </article>
         </section>
     `;
+}
+
+function ensureWidgetMounted() {
+    const widgetHost = document.getElementById('widget-root');
+
+    if (!(widgetHost instanceof HTMLElement)) {
+        destroyWidget();
+        return;
+    }
+
+    if (currentWidgetHost === widgetHost) {
+        return;
+    }
+
+    mountedWidget?.destroy();
+    mountedWidget = mountWidget(widgetHost, demoConfig);
+    currentWidgetHost = widgetHost;
+}
+
+function destroyWidget() {
+    mountedWidget?.destroy();
+    mountedWidget = null;
+    currentWidgetHost = null;
 }
 
 function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
@@ -315,7 +345,7 @@ function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
                             <p class="surface-copy">
                                 Launch a public estimator, capture leads automatically, and manage your pricing from the client portal.
                             </p>
-                            <a class="cta-link" href="/">Get Started</a>
+                            <a class="cta-link" href="mailto:${escapeHtmlAttribute(helloEmail)}">Contact</a>
                         </aside>
                     `
                     : `
@@ -331,29 +361,6 @@ function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
             }
         </section>
     `;
-}
-
-function ensureWidgetMounted() {
-    const widgetHost = document.getElementById('widget-root');
-
-    if (!(widgetHost instanceof HTMLElement)) {
-        destroyWidget();
-        return;
-    }
-
-    if (currentWidgetHost === widgetHost) {
-        return;
-    }
-
-    mountedWidget?.destroy();
-    mountedWidget = mountWidget(widgetHost, demoConfig);
-    currentWidgetHost = widgetHost;
-}
-
-function destroyWidget() {
-    mountedWidget?.destroy();
-    mountedWidget = null;
-    currentWidgetHost = null;
 }
 
 function normalizePath(pathname: string): SitePath {
@@ -373,4 +380,8 @@ function escapeHtml(value: string): string {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function escapeHtmlAttribute(value: string): string {
+    return escapeHtml(value);
 }

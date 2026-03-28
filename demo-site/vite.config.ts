@@ -6,6 +6,7 @@ const projectDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     root: path.resolve(projectDirectory, 'src'),
+    publicDir: path.resolve(projectDirectory, 'public'),
     server: {
         port: 4173,
         fs: {

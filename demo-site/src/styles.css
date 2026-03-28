@@ -227,7 +227,7 @@ a {
 
 .widget-zone {
     display: grid;
-    place-items: center;
+    place-items: stretch;
     min-height: 28rem;
     padding: 1.5rem;
     border-radius: 1.5rem;
@@ -259,9 +259,16 @@ a {
     transform: rotate(14deg);
 }
 
-#widget-root {
+.widget-preview-shell {
     position: relative;
     z-index: 1;
+    display: grid;
+}
+
+#widget-root {
+    min-height: 10rem;
+    display: grid;
+    place-items: center;
 }
 
 .feature-list,
@@ -359,4 +366,5 @@ a {
     .widget-zone {
         min-height: 18rem;
     }
+
 }

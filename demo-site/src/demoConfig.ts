@@ -5,8 +5,12 @@ const apiBaseUrl = readRequiredEnv('VITE_API_BASE_URL');
 export const demoConfig: WidgetRuntimeConfigInput = {
     apiBaseUrl,
     clientId: readOptionalEnv('VITE_CLIENT_ID') || 'demo',
-    launcherLabel: readOptionalEnv('VITE_LAUNCHER_LABEL') || 'Launch Demo Widget',
-    modalTitle: readOptionalEnv('VITE_MODAL_TITLE') || 'Owned Estimate Demo'
+    launcherLabel: readOptionalEnv('VITE_LAUNCHER_LABEL') || 'Try The Live Widget',
+    modalTitle: readOptionalEnv('VITE_MODAL_TITLE') || 'Estimate Engine Demo',
+    companyName: readOptionalEnv('VITE_COMPANY_NAME') || 'Estimate Engine',
+    logoUrl: readOptionalEnv('VITE_LOGO_URL') || '/brand/estimate-engine-logo.png',
+    primaryColor: readOptionalEnv('VITE_PRIMARY_COLOR') || '#0f3554',
+    secondaryColor: readOptionalEnv('VITE_SECONDARY_COLOR') || '#2ea8ff'
 };
 
 function readRequiredEnv(key: 'VITE_API_BASE_URL'): string {
@@ -20,7 +24,15 @@ function readRequiredEnv(key: 'VITE_API_BASE_URL'): string {
 }
 
 function readOptionalEnv(
-    key: 'VITE_API_BASE_URL' | 'VITE_CLIENT_ID' | 'VITE_LAUNCHER_LABEL' | 'VITE_MODAL_TITLE'
+    key:
+        | 'VITE_API_BASE_URL'
+        | 'VITE_CLIENT_ID'
+        | 'VITE_LAUNCHER_LABEL'
+        | 'VITE_MODAL_TITLE'
+        | 'VITE_COMPANY_NAME'
+        | 'VITE_LOGO_URL'
+        | 'VITE_PRIMARY_COLOR'
+        | 'VITE_SECONDARY_COLOR'
 ): string | undefined {
     const value = import.meta.env[key];
 

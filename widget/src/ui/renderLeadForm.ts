@@ -4,6 +4,8 @@ import { parseOptionalString, parseRequiredEmail } from '../utils/validation';
 
 export interface LeadFormOptions {
     estimateResult: EstimateResult;
+    businessName: string;
+    businessPhone?: string;
     initialValue: Partial<LeadCaptureDetails> | null;
     isSubmitting: boolean;
     onBack: () => void;
@@ -11,21 +13,51 @@ export interface LeadFormOptions {
 }
 
 export function renderLeadForm(options: LeadFormOptions): HTMLElement {
-    const wrapper = createElement('div', { className: 'ee-panel' });
+    const wrapper = createElement('div', { className: 'ee-panel ee-panel-lead' });
     const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Save the estimate' });
     const title = createElement('h3', {
         className: 'ee-panel-title',
-        textContent: `Estimated total: $${options.estimateResult.total.toFixed(2)}`
+        textContent: 'Where should we send this estimate?'
     });
     const description = createElement('p', {
         className: 'ee-panel-copy',
-        textContent: 'Share your contact details and we will capture the lead with the exact server response.'
+        textContent: `Share the lead details below and ${options.businessName} will receive the exact server response with this estimate.`
     });
+    const helper = createElement('p', {
+        className: 'ee-step-helper',
+        textContent: `Estimated total ${formatCurrency(options.estimateResult.total)}`
+    });
+    const summaryCard = createElement('div', { className: 'ee-inline-summary-card' });
+    const summaryLabel = createElement('span', {
+        className: 'ee-inline-summary-label',
+        textContent: `Config version ${options.estimateResult.configVersion.versionNumber}`
+    });
+    const summaryValue = createElement('strong', {
+        className: 'ee-inline-summary-value',
+        textContent: formatCurrency(options.estimateResult.total)
+    });
+    const contactNote =
+        options.businessPhone &&
+        createElement('a', {
+            className: 'ee-contact-note',
+            textContent: `Prefer to talk now? Call ${options.businessPhone}`,
+            attributes: {
+                href: `tel:${normalizePhoneHref(options.businessPhone)}`
+            }
+        });
 
     const form = createElement('form', { className: 'ee-form' });
-    const nameField = createTextField('Name', 'name', options.initialValue?.name ?? '', 'Beloved John');
-    const emailField = createTextField('Email', 'email', options.initialValue?.email ?? '', 'belovedjohn@example.com');
-    const phoneField = createTextField('Phone', 'phone', options.initialValue?.phone ?? '', '+123 456 7890');
+    const formGrid = createElement('div', { className: 'ee-form-grid' });
+    const nameField = createTextField('Name', 'name', options.initialValue?.name ?? '', 'Beloved John', 'text', 'name');
+    const emailField = createTextField(
+        'Email',
+        'email',
+        options.initialValue?.email ?? '',
+        'belovedjohn@example.com',
+        'email',
+        'email'
+    );
+    const phoneField = createTextField('Phone', 'phone', options.initialValue?.phone ?? '', '+123 456 7890', 'tel', 'tel');
     const feedback = createElement('p', { className: 'ee-form-feedback' });
     const actions = createElement('div', { className: 'ee-actions' });
     const backButton = createElement('button', {
@@ -60,23 +92,33 @@ export function renderLeadForm(options: LeadFormOptions): HTMLElement {
         }
     });
 
+    appendChildren(summaryCard, summaryLabel, summaryValue);
     appendChildren(actions, backButton, submitButton);
-    appendChildren(form, nameField, emailField, phoneField, feedback, actions);
-    appendChildren(wrapper, eyebrow, title, description, form);
+    appendChildren(formGrid, nameField, emailField, phoneField);
+    appendChildren(form, formGrid, contactNote, feedback, actions);
+    appendChildren(wrapper, eyebrow, title, description, helper, summaryCard, form);
 
     return wrapper;
 }
 
-function createTextField(labelText: string, name: string, value: string, placeholder: string): HTMLElement {
+function createTextField(
+    labelText: string,
+    name: string,
+    value: string,
+    placeholder: string,
+    type: string,
+    autoComplete: string
+): HTMLElement {
     const field = createElement('label', { className: 'ee-field' });
     const label = createElement('span', { className: 'ee-field-label', textContent: labelText });
     const input = createElement('input', {
         className: 'ee-input',
         attributes: {
-            type: 'text',
+            type,
             name,
             value,
-            placeholder
+            placeholder,
+            autocomplete: autoComplete
         }
     });
 
@@ -91,4 +133,12 @@ function toggleFormDisabled(form: HTMLFormElement, disabled: boolean) {
             element.disabled = disabled;
         }
     });
+}
+
+function formatCurrency(value: number): string {
+    return `$${value.toFixed(2)}`;
+}
+
+function normalizePhoneHref(phoneNumber: string): string {
+    return phoneNumber.replace(/[^\d+]/g, '');
 }

@@ -10,7 +10,7 @@ export interface EstimateFormOptions {
 }
 
 export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
-    const wrapper = createElement('div', { className: 'ee-panel' });
+    const wrapper = createElement('div', { className: 'ee-panel ee-panel-form' });
     const eyebrow = createElement('p', {
         className: 'ee-eyebrow',
         textContent: `Base price: $${options.estimatorConfig.basePrice.toFixed(2)}`
@@ -21,7 +21,11 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
     });
     const description = createElement('p', {
         className: 'ee-panel-copy',
-        textContent: 'We will calculate the estimate on the server and return the result in real time.'
+        textContent: 'Choose a few inputs below and we will calculate the estimate on the server in real time.'
+    });
+    const helper = createElement('p', {
+        className: 'ee-step-helper',
+        textContent: 'Live pricing uses your active client configuration.'
     });
 
     const form = createElement('form', { className: 'ee-form' });
@@ -31,17 +35,41 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
         options.initialValue?.size?.toString() ?? '1200',
         'Square feet'
     );
-    const complexityField = createSelectField(
-        'Complexity',
-        'complexity',
-        options.initialValue?.complexity ?? 'medium',
-        ['low', 'medium', 'high']
-    );
-    const bulkField = createCheckboxField(
-        'Bulk project discount',
-        'bulk',
-        options.initialValue?.bulk ?? true
-    );
+    const quickSizePicks = createQuickSizePicks(['600', '1200', '1800', '2400', '3200']);
+    const complexityField = createChoiceFieldset('Complexity', 'complexity', options.initialValue?.complexity ?? 'medium', [
+        {
+            value: 'low',
+            eyebrow: 'Simple',
+            title: 'Low complexity',
+            copy: 'Straightforward scope with minimal site constraints.'
+        },
+        {
+            value: 'medium',
+            eyebrow: 'Balanced',
+            title: 'Medium complexity',
+            copy: 'Typical project conditions with standard installation needs.'
+        },
+        {
+            value: 'high',
+            eyebrow: 'Custom',
+            title: 'High complexity',
+            copy: 'Tighter access, added coordination, or more involved work.'
+        }
+    ]);
+    const bulkField = createChoiceFieldset('Bulk discount', 'bulk', (options.initialValue?.bulk ?? true) ? 'true' : 'false', [
+        {
+            value: 'true',
+            eyebrow: 'Yes',
+            title: 'Apply bulk pricing',
+            copy: 'Use this when the project qualifies for the configured discount.'
+        },
+        {
+            value: 'false',
+            eyebrow: 'No',
+            title: 'Standard pricing',
+            copy: 'Keep the estimate at the normal project rate.'
+        }
+    ]);
     const feedback = createElement('p', { className: 'ee-form-feedback' });
     const submitButton = createElement('button', {
         className: 'ee-primary-action',
@@ -52,6 +80,18 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
     submitButton.disabled = options.isSubmitting;
     toggleFormDisabled(form, options.isSubmitting);
 
+    const sizeInput = sizeField.querySelector('input[name="size"]');
+
+    quickSizePicks.querySelectorAll('button[data-size-value]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const sizeValue = button.getAttribute('data-size-value');
+
+            if (sizeInput instanceof HTMLInputElement && sizeValue) {
+                sizeInput.value = sizeValue;
+            }
+        });
+    });
+
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         feedback.textContent = '';
@@ -61,7 +101,7 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
             const input: EstimateInput = {
                 size: parsePositiveNumber(String(formData.get('size') ?? ''), 'Project size'),
                 complexity: parseComplexity(String(formData.get('complexity') ?? 'medium')),
-                bulk: formData.get('bulk') === 'on'
+                bulk: parseBulkChoice(String(formData.get('bulk') ?? 'true'))
             };
 
             options.onSubmit(input);
@@ -70,8 +110,8 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
         }
     });
 
-    appendChildren(form, sizeField, complexityField, bulkField, feedback, submitButton);
-    appendChildren(wrapper, eyebrow, title, description, form);
+    appendChildren(form, sizeField, quickSizePicks, complexityField, bulkField, feedback, submitButton);
+    appendChildren(wrapper, eyebrow, title, description, helper, form);
 
     return wrapper;
 }
@@ -80,7 +120,7 @@ function createNumberField(labelText: string, name: string, value: string, place
     const field = createElement('label', { className: 'ee-field' });
     const label = createElement('span', { className: 'ee-field-label', textContent: labelText });
     const input = createElement('input', {
-        className: 'ee-input',
+        className: 'ee-input ee-input--prominent',
         attributes: {
             type: 'number',
             name,
@@ -97,54 +137,65 @@ function createNumberField(labelText: string, name: string, value: string, place
     return field;
 }
 
-function createSelectField(
-    labelText: string,
-    name: string,
-    selectedValue: EstimateInput['complexity'],
-    values: Array<EstimateInput['complexity']>
-): HTMLElement {
-    const field = createElement('label', { className: 'ee-field' });
-    const label = createElement('span', { className: 'ee-field-label', textContent: labelText });
-    const select = createElement('select', {
-        className: 'ee-input',
-        attributes: {
-            name
-        }
-    });
+function createQuickSizePicks(values: string[]): HTMLElement {
+    const row = createElement('div', { className: 'ee-quick-size-row' });
 
     values.forEach((value) => {
-        const option = createElement('option', {
-            textContent: value[0].toUpperCase() + value.slice(1),
+        const button = createElement('button', {
+            className: 'ee-quick-size-pill',
+            textContent: `${Number(value).toLocaleString()} sq ft`,
             attributes: {
-                value
+                type: 'button',
+                'data-size-value': value
             }
         });
 
-        option.selected = value === selectedValue;
-        select.append(option);
+        row.append(button);
     });
 
-    appendChildren(field, label, select);
-
-    return field;
+    return row;
 }
 
-function createCheckboxField(labelText: string, name: string, checked: boolean): HTMLElement {
-    const field = createElement('label', { className: 'ee-checkbox-field' });
-    const input = createElement('input', {
-        attributes: {
-            type: 'checkbox',
-            name
-        }
+function createChoiceFieldset(
+    labelText: string,
+    name: string,
+    selectedValue: string,
+    values: Array<{
+        value: string;
+        eyebrow: string;
+        title: string;
+        copy: string;
+    }>
+): HTMLElement {
+    const fieldset = createElement('fieldset', { className: 'ee-fieldset' });
+    const legend = createElement('legend', { className: 'ee-field-label', textContent: labelText });
+    const grid = createElement('div', { className: 'ee-choice-grid' });
+
+    values.forEach((value) => {
+        const label = createElement('label', { className: 'ee-choice-card' });
+        const input = createElement('input', {
+            className: 'ee-choice-card__input',
+            attributes: {
+                type: 'radio',
+                name,
+                value: value.value
+            }
+        });
+        const surface = createElement('span', { className: 'ee-choice-card__surface' });
+        const eyebrow = createElement('span', { className: 'ee-choice-card__eyebrow', textContent: value.eyebrow });
+        const title = createElement('strong', { className: 'ee-choice-card__title', textContent: value.title });
+        const copy = createElement('span', { className: 'ee-choice-card__copy', textContent: value.copy });
+
+        input.checked = value.value === selectedValue;
+
+        appendChildren(surface, eyebrow, title, copy);
+        appendChildren(label, input, surface);
+        grid.append(label);
     });
 
-    input.checked = checked;
+    appendChildren(fieldset, legend, grid);
 
-    const label = createElement('span', { className: 'ee-checkbox-label', textContent: labelText });
-
-    appendChildren(field, input, label);
-
-    return field;
+    return fieldset;
 }
 
 function toggleFormDisabled(form: HTMLFormElement, disabled: boolean) {
@@ -161,4 +212,16 @@ function parseComplexity(value: string): EstimateInput['complexity'] {
     }
 
     throw new Error('Complexity must be low, medium, or high');
+}
+
+function parseBulkChoice(value: string): boolean {
+    if (value === 'true') {
+        return true;
+    }
+
+    if (value === 'false') {
+        return false;
+    }
+
+    throw new Error('Bulk discount selection is invalid');
 }
