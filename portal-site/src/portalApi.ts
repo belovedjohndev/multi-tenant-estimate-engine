@@ -66,6 +66,17 @@ export async function logoutPortal(): Promise<void> {
     });
 }
 
+export async function resetPortalDemo(): Promise<{
+    reset: true;
+    clientId: string;
+    clearedLeadCount: number;
+    removedConfigVersionCount: number;
+}> {
+    return requestPortalApi('/portal/demo/reset', {
+        method: 'POST'
+    });
+}
+
 async function requestPortalApi<T>(
     path: string,
     init: {

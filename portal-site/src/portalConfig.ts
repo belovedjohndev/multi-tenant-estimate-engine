@@ -3,7 +3,7 @@ const apiBaseUrl = readRequiredEnv('VITE_API_BASE_URL');
 export const portalConfig = {
     apiBaseUrl,
     defaultClientId: readOptionalEnv('VITE_DEFAULT_CLIENT_ID') || 'demo',
-    portalTitle: readOptionalEnv('VITE_PORTAL_TITLE') || 'Estimate Engine Client Portal'
+    portalTitle: readOptionalEnv('VITE_PORTAL_TITLE') || 'Estimate Engine Private Dashboard'
 };
 
 function readRequiredEnv(key: 'VITE_API_BASE_URL'): string {

@@ -5,6 +5,7 @@ import {
     fetchPortalSession,
     loginPortal,
     logoutPortal,
+    resetPortalDemo,
     updatePortalClientSettings
 } from './portalApi';
 import { PortalClientSettings, PortalLeadsResponse, PortalSession } from './portalTypes';
@@ -21,6 +22,13 @@ interface AppState {
         errorMessage: string | null;
         settingsMessage: string | null;
         isSavingSettings: boolean;
+        isResettingDemo: boolean;
+        loginForm: {
+            clientId: string;
+            email: string;
+            password: string;
+            showPassword: boolean;
+        };
     };
 }
 
@@ -39,6 +47,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short'
 });
+const portalTitle = normalizePortalTitle(portalConfig.portalTitle);
 
 const state: AppState = {
     portal: {
@@ -48,7 +57,14 @@ const state: AppState = {
         settings: null,
         errorMessage: null,
         settingsMessage: null,
-        isSavingSettings: false
+        isSavingSettings: false,
+        isResettingDemo: false,
+        loginForm: {
+            clientId: portalConfig.defaultClientId,
+            email: '',
+            password: '',
+            showPassword: false
+        }
     }
 };
 
@@ -78,7 +94,13 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             settings,
             errorMessage: null,
             settingsMessage: null,
-            isSavingSettings: false
+            isSavingSettings: false,
+            isResettingDemo: false,
+            loginForm: {
+                ...state.portal.loginForm,
+                password: '',
+                showPassword: false
+            }
         };
     } catch (error) {
         const statusCode = error instanceof Error && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : null;
@@ -92,9 +114,15 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             errorMessage:
                 isUnauthorized && options?.suppressErrorOnUnauthorized
                     ? null
-                    : getErrorMessage(error, 'Unable to load the client dashboard.'),
+                    : getErrorMessage(error, 'Unable to load your dashboard.'),
             settingsMessage: null,
-            isSavingSettings: false
+            isSavingSettings: false,
+            isResettingDemo: false,
+            loginForm: {
+                ...state.portal.loginForm,
+                password: '',
+                showPassword: false
+            }
         };
     }
 
@@ -106,18 +134,17 @@ function renderApp() {
         <div class="portal-shell">
             <section class="portal-hero">
                 <div class="portal-hero__copy">
-                    <p class="eyebrow">Dedicated Portal</p>
-                    <h1>${escapeHtml(portalConfig.portalTitle)}</h1>
+                    <p class="eyebrow">Private Dashboard</p>
+                    <h1>${escapeHtml(portalTitle)}</h1>
                     <p class="hero-copy">
-                        Login, lead review, client settings, pricing config editing, config version history, and logout now
-                        live in a dedicated frontend app. Authentication now uses a server-managed HttpOnly session cookie
-                        and the public estimator remains isolated in <code>demo-site</code>.
+                        Secure sign-in gives your team one place to review estimate requests, update pricing settings,
+                        and manage company details while the public estimate experience stays separate.
                     </p>
                 </div>
                 <div class="portal-hero__meta">
-                    <span class="hero-pill">Authenticated operations</span>
-                    <span class="hero-pill">Tenant-safe settings</span>
-                    <span class="hero-pill">HttpOnly cookie auth</span>
+                    <span class="hero-pill">Secure dashboard</span>
+                    <span class="hero-pill">Company settings</span>
+                    <span class="hero-pill">Secure sign-in</span>
                 </div>
             </section>
             ${renderPortalSurface()}
@@ -140,14 +167,13 @@ function renderPortalSurface(): string {
             <div class="surface-card surface-card--auth">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Client Login</p>
+                        <p class="card-label">Secure Sign-In</p>
                         <h2>Access the private dashboard</h2>
                     </div>
-                    <p class="surface-meta">No backend contract changes</p>
+                    <p class="surface-meta surface-meta--compact">Private access</p>
                 </div>
                 <p class="surface-copy">
-                    This frontend is the authenticated side of the SaaS product. Auth state comes from <code>/auth/me</code>
-                    while the session itself stays in a server-managed HttpOnly cookie.
+                    Sign in to review customer requests, update pricing settings, and manage your company details.
                 </p>
                 ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
                 ${status === 'loading' || status === 'signingIn' ? renderPortalLoading(status) : renderLoginForm()}
@@ -155,22 +181,22 @@ function renderPortalSurface(): string {
             <div class="surface-card surface-card--notes">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Portal Scope</p>
-                        <h2>Everything client-only stays here</h2>
+                        <p class="card-label">What You Can Manage</p>
+                        <h2>Everything for your company stays here</h2>
                     </div>
                 </div>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Dashboard</h3>
-                        <p>Recent leads, totals, and activity history stay outside the public website.</p>
+                        <h3>Requests</h3>
+                        <p>Review new estimate requests, totals, and recent activity in one private place.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Settings</h3>
-                        <p>Company profile, notification email, and logo remain tenant-isolated.</p>
+                        <h3>Company details</h3>
+                        <p>Keep your company name, notification email, phone number, and logo up to date.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Pricing control</h3>
-                        <p>Pricing JSON and immutable config version history remain attached to the authenticated tenant.</p>
+                        <h3>Pricing settings</h3>
+                        <p>Your pricing settings and saved changes stay linked to your company account.</p>
                     </div>
                 </div>
             </div>
@@ -181,8 +207,8 @@ function renderPortalSurface(): string {
 function renderPortalLoading(status: PortalStatus): string {
     const copy =
         status === 'signingIn'
-            ? 'Verifying credentials and opening the client session.'
-            : 'Loading the authenticated dashboard and recent lead data.';
+            ? 'Checking your details and opening your dashboard.'
+            : 'Loading your dashboard and recent requests.';
 
     return `
         <div class="portal-loading">
@@ -194,55 +220,94 @@ function renderPortalLoading(status: PortalStatus): string {
 }
 
 function renderLoginForm(): string {
+    const { clientId, email, password, showPassword } = state.portal.loginForm;
+
     return `
         <form id="portal-login-form" class="portal-form">
             <label class="field">
-                <span class="field-label">Client ID</span>
-                <input class="field-input" name="clientId" type="text" value="${escapeHtml(portalConfig.defaultClientId)}" autocomplete="organization" />
+                <span class="field-label">Company ID</span>
+                <input
+                    class="field-input"
+                    name="clientId"
+                    type="text"
+                    value="${escapeHtml(clientId)}"
+                    autocomplete="organization"
+                />
             </label>
             <label class="field">
                 <span class="field-label">Email</span>
-                <input class="field-input" name="email" type="email" placeholder="owner@example.com" autocomplete="email" />
+                <input
+                    class="field-input"
+                    name="email"
+                    type="email"
+                    value="${escapeHtml(email)}"
+                    placeholder="owner@example.com"
+                    autocomplete="email"
+                />
             </label>
             <label class="field">
                 <span class="field-label">Password</span>
-                <input class="field-input" name="password" type="password" placeholder="Minimum 8 characters" autocomplete="current-password" />
+                <input
+                    class="field-input"
+                    id="portal-password-input"
+                    name="password"
+                    type="${showPassword ? 'text' : 'password'}"
+                    value="${escapeHtml(password)}"
+                    placeholder="Enter your password"
+                    autocomplete="current-password"
+                />
             </label>
-            <button class="primary-button" type="submit">Open Dashboard</button>
+            <label class="password-toggle" for="portal-password-toggle">
+                <input
+                    id="portal-password-toggle"
+                    type="checkbox"
+                    ${showPassword ? 'checked' : ''}
+                />
+                <span>Show password</span>
+            </label>
+            <button class="primary-button" type="submit">Sign In</button>
         </form>
     `;
 }
 
 function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, settings: PortalClientSettings): string {
     const errorMessage = state.portal.errorMessage;
+    const demoResetAvailable = isDemoResetAvailable(session);
 
     return `
         <section class="dashboard-shell">
             <div class="surface-card dashboard-card">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Client Dashboard</p>
+                        <p class="card-label">Company Dashboard</p>
                         <h2>${escapeHtml(settings.companyName)}</h2>
                     </div>
                     <div class="portal-actions">
                         <button class="secondary-button" type="button" id="portal-refresh-button">Refresh</button>
+                        ${
+                            demoResetAvailable
+                                ? `<button class="secondary-button secondary-button--danger" type="button" id="portal-reset-demo-button" ${
+                                      state.portal.isResettingDemo ? 'disabled' : ''
+                                  }>${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo'}</button>`
+                                : ''
+                        }
                         <button class="secondary-button" type="button" id="portal-logout-button">Sign Out</button>
                     </div>
                 </div>
                 <p class="surface-copy">
                     Signed in as <strong>${escapeHtml(session.user.fullName)}</strong> (${escapeHtml(session.user.email)}).
-                    Session expires ${escapeHtml(formatDateTime(session.session.expiresAt))}.
+                    Login session ends ${escapeHtml(formatDateTime(session.session.expiresAt))}.
                 </p>
                 ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
                 <div class="metric-grid">
-                    ${renderMetricCard('Total Leads', String(leads.summary.totalLeadCount))}
+                    ${renderMetricCard('Total Requests', String(leads.summary.totalLeadCount))}
                     ${renderMetricCard(
                         'Average Estimate',
                         leads.summary.averageEstimateTotal === null ? 'No data' : formatCurrency(leads.summary.averageEstimateTotal)
                     )}
                     ${renderMetricCard(
-                        'Latest Lead',
-                        leads.summary.latestLeadCreatedAt ? formatDateTime(leads.summary.latestLeadCreatedAt) : 'No leads yet'
+                        'Latest Request',
+                        leads.summary.latestLeadCreatedAt ? formatDateTime(leads.summary.latestLeadCreatedAt) : 'No requests yet'
                     )}
                 </div>
                 ${renderSettingsPanel(settings)}
@@ -250,10 +315,10 @@ function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, set
             <div class="surface-card lead-column">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Lead List</p>
-                        <h2>Recent submissions</h2>
+                        <p class="card-label">Estimate Requests</p>
+                        <h2>Recent requests</h2>
                     </div>
-                    <p class="surface-meta">Config-aware history</p>
+                    <p class="surface-meta">Pricing version shown</p>
                 </div>
                 <div class="lead-list">
                     ${leads.leads.length ? leads.leads.map(renderLeadCard).join('') : renderEmptyLeads()}
@@ -277,7 +342,7 @@ function renderLeadCard(lead: PortalLeadsResponse['leads'][number]): string {
         <article class="lead-card">
             <div class="lead-card__row">
                 <div>
-                    <p class="lead-title">${escapeHtml(lead.name || 'Unnamed lead')}</p>
+                    <p class="lead-title">${escapeHtml(lead.name || 'Estimate request')}</p>
                     <p class="lead-subtitle">${escapeHtml(lead.email)}${lead.phone ? ` | ${escapeHtml(lead.phone)}` : ''}</p>
                 </div>
                 <p class="lead-total">${escapeHtml(formatCurrency(lead.estimateData.total))}</p>
@@ -288,9 +353,9 @@ function renderLeadCard(lead: PortalLeadsResponse['leads'][number]): string {
                     'Complexity',
                     lead.estimateInput?.complexity ? lead.estimateInput.complexity.toUpperCase() : 'N/A'
                 )}
-                ${renderLeadBadge('Config', `v${lead.configVersionNumber}`)}
-                ${renderLeadBadge('Size', lead.estimateInput?.size !== undefined ? String(lead.estimateInput.size) : 'N/A')}
-                ${renderLeadBadge('Bulk', lead.estimateInput?.bulk === true ? 'Yes' : lead.estimateInput?.bulk === false ? 'No' : 'N/A')}
+                ${renderLeadBadge('Saved version', `v${lead.configVersionNumber}`)}
+                ${renderLeadBadge('Project size', lead.estimateInput?.size !== undefined ? String(lead.estimateInput.size) : 'N/A')}
+                ${renderLeadBadge('Bulk pricing', lead.estimateInput?.bulk === true ? 'Yes' : lead.estimateInput?.bulk === false ? 'No' : 'N/A')}
             </div>
         </article>
     `;
@@ -303,9 +368,9 @@ function renderLeadBadge(label: string, value: string): string {
 function renderEmptyLeads(): string {
     return `
         <div class="empty-state">
-            <p class="empty-state__title">No leads yet</p>
+            <p class="empty-state__title">No requests yet</p>
             <p class="empty-state__copy">
-                Submit a lead through the public widget to see the first dashboard record appear here.
+                New estimate requests from your website will appear here.
             </p>
         </div>
     `;
@@ -323,29 +388,29 @@ function renderSettingsPanel(settings: PortalClientSettings): string {
                         <span class="history-item__meta">${escapeHtml(formatDateTime(entry.createdAt))}${
                             entry.createdByEmail ? ` by ${escapeHtml(entry.createdByEmail)}` : ''
                         }</span>
-                        ${entry.isActive ? '<span class="history-item__active">Active</span>' : ''}
+                        ${entry.isActive ? '<span class="history-item__active">Current</span>' : ''}
                     </li>
                 `
               )
               .join('')
-        : '<li class="history-item">No config history yet.</li>';
+        : '<li class="history-item">No saved changes yet.</li>';
 
     return `
         <section class="settings-panel">
             <div class="settings-panel__header">
                 <div>
-                    <p class="card-label">Client Settings</p>
-                    <h3>Profile, pricing, and config history</h3>
+                    <p class="card-label">Company Settings</p>
+                    <h3>Profile, pricing, and change history</h3>
                 </div>
-                <p class="surface-meta">Tenant ID: ${escapeHtml(settings.clientId)}</p>
+                <p class="surface-meta">Company ID: ${escapeHtml(settings.clientId)}</p>
             </div>
             <p class="surface-copy">
-                Update company profile data and the pricing JSON that drives the estimator while preserving the stable tenant slug.
+                Update your company details and pricing settings here while keeping the same company ID for your website.
             </p>
             <div class="settings-version-card">
-                <p class="metric-label">Current Config Version</p>
+                <p class="metric-label">Current Saved Version</p>
                 <p class="settings-version-card__value">v${escapeHtml(String(settings.currentConfigVersion.versionNumber))}</p>
-                <p class="settings-version-card__meta">Activated ${escapeHtml(formatDateTime(settings.currentConfigVersion.createdAt))}</p>
+                <p class="settings-version-card__meta">Saved ${escapeHtml(formatDateTime(settings.currentConfigVersion.createdAt))}</p>
             </div>
             ${settingsMessage ? `<p class="portal-feedback portal-feedback--success">${escapeHtml(settingsMessage)}</p>` : ''}
             <form id="portal-settings-form" class="portal-form">
@@ -368,15 +433,15 @@ function renderSettingsPanel(settings: PortalClientSettings): string {
                     </label>
                 </div>
                 <label class="field">
-                    <span class="field-label">Pricing Config JSON</span>
+                    <span class="field-label">Pricing Settings</span>
                     <textarea class="field-input field-input--multiline" name="estimatorConfig">${escapeHtml(estimatorConfigJson)}</textarea>
                 </label>
-                <button class="primary-button" type="submit">${state.portal.isSavingSettings ? 'Saving...' : 'Save Settings'}</button>
+                <button class="primary-button" type="submit">${state.portal.isSavingSettings ? 'Saving...' : 'Save Changes'}</button>
             </form>
             <div class="settings-history">
                 <div class="settings-history__header">
-                    <p class="card-label">Config Version History</p>
-                    <p class="surface-meta">Recent immutable versions</p>
+                    <p class="card-label">Pricing Change History</p>
+                    <p class="surface-meta">Saved versions</p>
                 </div>
                 <ul class="history-list">
                     ${historyMarkup}
@@ -390,6 +455,19 @@ function wirePortalEvents() {
     const loginForm = document.getElementById('portal-login-form');
 
     if (loginForm instanceof HTMLFormElement) {
+        bindLoginField(loginForm, 'clientId');
+        bindLoginField(loginForm, 'email');
+        bindLoginField(loginForm, 'password');
+
+        const passwordToggle = document.getElementById('portal-password-toggle');
+
+        if (passwordToggle instanceof HTMLInputElement) {
+            passwordToggle.addEventListener('change', () => {
+                state.portal.loginForm.showPassword = passwordToggle.checked;
+                renderApp();
+            });
+        }
+
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
@@ -397,6 +475,12 @@ function wirePortalEvents() {
             const clientId = String(formData.get('clientId') ?? '').trim();
             const email = String(formData.get('email') ?? '').trim();
             const password = String(formData.get('password') ?? '');
+            state.portal.loginForm = {
+                ...state.portal.loginForm,
+                clientId,
+                email,
+                password
+            };
 
             state.portal.status = 'signingIn';
             state.portal.errorMessage = null;
@@ -411,9 +495,11 @@ function wirePortalEvents() {
                     session: null,
                     leads: null,
                     settings: null,
-                    errorMessage: getErrorMessage(error, 'Unable to sign in to the client portal.'),
+                    errorMessage: getErrorMessage(error, 'Unable to sign in.'),
                     settingsMessage: null,
-                    isSavingSettings: false
+                    isSavingSettings: false,
+                    isResettingDemo: false,
+                    loginForm: state.portal.loginForm
                 };
                 renderApp();
             }
@@ -425,6 +511,43 @@ function wirePortalEvents() {
     if (refreshButton instanceof HTMLButtonElement) {
         refreshButton.addEventListener('click', async () => {
             await loadPortalDashboard();
+        });
+    }
+
+    const resetDemoButton = document.getElementById('portal-reset-demo-button');
+
+    if (resetDemoButton instanceof HTMLButtonElement) {
+        resetDemoButton.addEventListener('click', async () => {
+            if (!isDemoResetAvailable(state.portal.session)) {
+                return;
+            }
+
+            const resetWasConfirmed = window.confirm(
+                'Reset the shared demo? This clears recent requests and restores the default demo company settings.'
+            );
+
+            if (!resetWasConfirmed) {
+                return;
+            }
+
+            state.portal.isResettingDemo = true;
+            state.portal.errorMessage = null;
+            state.portal.settingsMessage = null;
+            renderApp();
+
+            try {
+                await resetPortalDemo();
+                await loadPortalDashboard();
+
+                if (state.portal.status === 'ready') {
+                    state.portal.settingsMessage = 'Demo reset complete.';
+                    renderApp();
+                }
+            } catch (error) {
+                state.portal.isResettingDemo = false;
+                state.portal.errorMessage = getErrorMessage(error, 'Unable to reset the demo dashboard.');
+                renderApp();
+            }
         });
     }
 
@@ -445,7 +568,13 @@ function wirePortalEvents() {
                 settings: null,
                 errorMessage: null,
                 settingsMessage: null,
-                isSavingSettings: false
+                isSavingSettings: false,
+                isResettingDemo: false,
+                loginForm: {
+                    ...state.portal.loginForm,
+                    password: '',
+                    showPassword: false
+                }
             };
             renderApp();
         });
@@ -472,7 +601,7 @@ function wirePortalEvents() {
                 estimatorConfig = JSON.parse(estimatorConfigText) as PortalClientSettings['estimatorConfig'];
             } catch {
                 state.portal.settingsMessage = null;
-                state.portal.errorMessage = 'Pricing config JSON must be valid JSON.';
+                state.portal.errorMessage = 'Pricing settings format is invalid. Please review the entries and try again.';
                 renderApp();
                 return;
             }
@@ -493,11 +622,11 @@ function wirePortalEvents() {
 
                 state.portal.settings = updatedSettings;
                 state.portal.isSavingSettings = false;
-                state.portal.settingsMessage = 'Client settings saved.';
+                state.portal.settingsMessage = 'Company settings saved.';
                 renderApp();
             } catch (error) {
                 state.portal.isSavingSettings = false;
-                state.portal.errorMessage = getErrorMessage(error, 'Unable to save client settings.');
+                state.portal.errorMessage = getErrorMessage(error, 'Unable to save company settings.');
                 renderApp();
             }
         });
@@ -510,6 +639,29 @@ function applyPortalBranding() {
     rootElement.style.setProperty('--portal-accent', branding?.primaryColor ?? '#b45309');
     rootElement.style.setProperty('--portal-accent-secondary', branding?.secondaryColor ?? '#0f766e');
     rootElement.style.setProperty('--portal-font-family', branding?.fontFamily ?? '"Avenir Next", "Segoe UI", sans-serif');
+}
+
+function bindLoginField(
+    loginForm: HTMLFormElement,
+    fieldName: 'clientId' | 'email' | 'password'
+) {
+    const field = loginForm.elements.namedItem(fieldName);
+
+    if (!(field instanceof HTMLInputElement)) {
+        return;
+    }
+
+    field.addEventListener('input', () => {
+        state.portal.loginForm[fieldName] = field.value;
+    });
+}
+
+function isDemoResetAvailable(session: PortalSession | null): boolean {
+    return Boolean(session && session.client.name === portalConfig.defaultClientId);
+}
+
+function normalizePortalTitle(value: string): string {
+    return value.replace(/client portal/gi, 'Private Dashboard').replace(/portal/gi, 'Dashboard');
 }
 
 function normalizeOptionalValue(value: FormDataEntryValue | null): string | undefined {

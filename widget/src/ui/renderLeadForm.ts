@@ -14,14 +14,14 @@ export interface LeadFormOptions {
 
 export function renderLeadForm(options: LeadFormOptions): HTMLElement {
     const wrapper = createElement('div', { className: 'ee-panel ee-panel-lead' });
-    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Save the estimate' });
+    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Send your request' });
     const title = createElement('h3', {
         className: 'ee-panel-title',
-        textContent: 'Where should we send this estimate?'
+        textContent: 'Where should we send your estimate?'
     });
     const description = createElement('p', {
         className: 'ee-panel-copy',
-        textContent: `Share the lead details below and ${options.businessName} will receive the exact server response with this estimate.`
+        textContent: `Share your details below and ${options.businessName} will receive this estimate request.`
     });
     const helper = createElement('p', {
         className: 'ee-step-helper',
@@ -30,7 +30,7 @@ export function renderLeadForm(options: LeadFormOptions): HTMLElement {
     const summaryCard = createElement('div', { className: 'ee-inline-summary-card' });
     const summaryLabel = createElement('span', {
         className: 'ee-inline-summary-label',
-        textContent: `Config version ${options.estimateResult.configVersion.versionNumber}`
+        textContent: `Saved version ${options.estimateResult.configVersion.versionNumber}`
     });
     const summaryValue = createElement('strong', {
         className: 'ee-inline-summary-value',
@@ -67,7 +67,7 @@ export function renderLeadForm(options: LeadFormOptions): HTMLElement {
     });
     const submitButton = createElement('button', {
         className: 'ee-primary-action',
-        textContent: options.isSubmitting ? 'Saving...' : 'Submit Lead',
+        textContent: options.isSubmitting ? 'Sending...' : 'Send Request',
         attributes: { type: 'submit' }
     });
 
@@ -88,7 +88,7 @@ export function renderLeadForm(options: LeadFormOptions): HTMLElement {
                 phone: parseOptionalString(formData.get('phone'))
             });
         } catch (error) {
-            feedback.textContent = error instanceof Error ? error.message : 'Unable to validate the lead form';
+            feedback.textContent = error instanceof Error ? error.message : 'Please review your details and try again.';
         }
     });
 

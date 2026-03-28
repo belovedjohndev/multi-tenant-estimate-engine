@@ -10,7 +10,7 @@ export interface EstimateResultOptions {
 
 export function renderEstimateResult(options: EstimateResultOptions): HTMLElement {
     const wrapper = createElement('div', { className: 'ee-panel ee-panel-result' });
-    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Server-calculated estimate' });
+    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Estimate ready' });
     const title = createElement('h3', {
         className: 'ee-panel-title',
         textContent: 'Your estimate is ready'
@@ -23,7 +23,7 @@ export function renderEstimateResult(options: EstimateResultOptions): HTMLElemen
     });
     const versionPill = createElement('p', {
         className: 'ee-version-pill',
-        textContent: `Config v${options.result.configVersion.versionNumber}`
+        textContent: `Saved version v${options.result.configVersion.versionNumber}`
     });
     const summary = createElement('p', {
         className: 'ee-panel-copy',
@@ -45,12 +45,12 @@ export function renderEstimateResult(options: EstimateResultOptions): HTMLElemen
     const actions = createElement('div', { className: 'ee-actions' });
     const adjustButton = createElement('button', {
         className: 'ee-secondary-action',
-        textContent: 'Adjust Inputs',
+        textContent: 'Update Details',
         attributes: { type: 'button' }
     });
     const continueButton = createElement('button', {
         className: 'ee-primary-action',
-        textContent: 'Save This Estimate',
+        textContent: 'Send This Estimate',
         attributes: { type: 'button' }
     });
 

@@ -110,6 +110,9 @@ Recommended environment variables:
 - `CLIENT_PORTAL_COOKIE_SECURE=true`
 - `CLIENT_PORTAL_COOKIE_SAME_SITE=lax` for same-site deployments, or `none` for cross-site frontend/backend deployments
 - `CLIENT_PORTAL_COOKIE_NAME=estimate_engine_portal_session`
+- `CLIENT_PORTAL_DEMO_RESET_CLIENT_ID=demo` to restrict the demo reset action to the shared demo tenant
+- `CLIENT_PORTAL_DEMO_RESET_COMPANY_NAME`, `CLIENT_PORTAL_DEMO_RESET_PHONE`, `CLIENT_PORTAL_DEMO_RESET_NOTIFICATION_EMAIL`, and `CLIENT_PORTAL_DEMO_RESET_LOGO_URL` if you want custom demo reset defaults
+- `CLIENT_PORTAL_DEMO_RESET_ESTIMATOR_CONFIG` with a JSON object for the demo tenant pricing baseline
 
 Example values:
 
@@ -284,6 +287,7 @@ Authenticated dashboard endpoints:
 - `GET /me/leads?limit=25`
 - `GET /portal/client`
 - `PUT /portal/client`
+- `POST /portal/demo/reset` for restoring the shared demo tenant to a clean default state
 
 Pricing versioning notes:
 

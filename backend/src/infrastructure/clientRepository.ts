@@ -289,6 +289,137 @@ export async function updateClientSettings(
     return getClientSettings(clientId);
 }
 
+export async function resetDemoClientState(
+    clientId: number,
+    resetProfile: Omit<ClientSettings, 'clientId' | 'currentConfigVersion' | 'configHistory'>,
+    actorClientUserId?: number
+): Promise<{
+    clearedLeadCount: number;
+    removedConfigVersionCount: number;
+}> {
+    const connection = await pool.connect();
+    let clearedLeadCount = 0;
+    let removedConfigVersionCount = 0;
+    let restoredConfigVersionId: number | null = null;
+
+    try {
+        await connection.query('BEGIN');
+
+        const clientRes = await connection.query<ClientRow>(
+            `SELECT id, name, company_name, phone, notification_email, active_config_version_id, created_at
+             FROM clients
+             WHERE id = $1
+             FOR UPDATE`,
+            [clientId]
+        );
+
+        if (!clientRes.rows[0]) {
+            throw new Error('Client not found');
+        }
+
+        const baselineVersionRes = await connection.query<ClientConfigVersionRow>(
+            `SELECT id, client_id, version_number, estimator_config, created_by_client_user_id, created_at
+             FROM client_config_versions
+             WHERE client_id = $1
+             ORDER BY version_number ASC
+             LIMIT 1
+             FOR UPDATE`,
+            [clientId]
+        );
+
+        const baselineVersion = baselineVersionRes.rows[0];
+
+        if (!baselineVersion) {
+            throw new Error('Client config not found');
+        }
+
+        restoredConfigVersionId = baselineVersion.id;
+
+        const deletedLeadsRes = await connection.query<{ id: number }>(
+            'DELETE FROM leads WHERE client_id = $1 RETURNING id',
+            [clientId]
+        );
+        clearedLeadCount = deletedLeadsRes.rowCount ?? 0;
+
+        await connection.query(
+            `UPDATE client_config_versions
+             SET estimator_config = $2
+             WHERE id = $1`,
+            [baselineVersion.id, resetProfile.estimatorConfig]
+        );
+
+        await connection.query(
+            `UPDATE clients
+             SET company_name = $1, phone = $2, notification_email = $3, active_config_version_id = $4
+             WHERE id = $5`,
+            [
+                resetProfile.companyName,
+                resetProfile.phone ?? null,
+                resetProfile.notificationEmail ?? null,
+                baselineVersion.id,
+                clientId
+            ]
+        );
+
+        const brandingUpdateRes = await connection.query<{ id: number }>(
+            `UPDATE client_branding
+             SET logo_url = $2
+             WHERE client_id = $1
+             RETURNING id`,
+            [clientId, resetProfile.logoUrl ?? null]
+        );
+
+        if (!brandingUpdateRes.rowCount) {
+            await connection.query(
+                `INSERT INTO client_branding (client_id, logo_url)
+                 VALUES ($1, $2)`,
+                [clientId, resetProfile.logoUrl ?? null]
+            );
+        }
+
+        const deletedVersionsRes = await connection.query<{ id: number }>(
+            'DELETE FROM client_config_versions WHERE client_id = $1 AND id <> $2 RETURNING id',
+            [clientId, baselineVersion.id]
+        );
+        removedConfigVersionCount = deletedVersionsRes.rowCount ?? 0;
+
+        await connection.query('DELETE FROM audit_logs WHERE client_id = $1', [clientId]);
+
+        await insertAuditLog(connection, {
+            clientId,
+            actorClientUserId,
+            action: 'demo_reset_completed',
+            entityType: 'client',
+            entityId: clientId,
+            metadata: {
+                clearedLeadCount,
+                removedConfigVersionCount,
+                restoredConfigVersionId: baselineVersion.id
+            }
+        });
+
+        await connection.query('COMMIT');
+    } catch (error) {
+        await connection.query('ROLLBACK');
+        throw error;
+    } finally {
+        connection.release();
+    }
+
+    logInfo('portal_demo_reset_completed', {
+        clientId,
+        actorClientUserId: actorClientUserId ?? null,
+        clearedLeadCount,
+        removedConfigVersionCount,
+        restoredConfigVersionId
+    });
+
+    return {
+        clearedLeadCount,
+        removedConfigVersionCount
+    };
+}
+
 async function getClientConfigVersionById(configVersionId: number): Promise<ClientConfig | null> {
     const configRes = await pool.query<ClientConfigVersionRow>(
         `SELECT id, client_id, version_number, estimator_config, created_by_client_user_id, created_at

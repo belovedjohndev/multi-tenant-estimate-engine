@@ -9,27 +9,27 @@ export interface SuccessStateOptions {
 
 export function renderSuccessState(options: SuccessStateOptions): HTMLElement {
     const wrapper = createElement('div', { className: 'ee-panel ee-panel-success' });
-    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Lead captured' });
+    const eyebrow = createElement('p', { className: 'ee-eyebrow', textContent: 'Request received' });
     const icon = createElement('div', { className: 'ee-success-icon', textContent: '✓' });
     const title = createElement('h3', {
         className: 'ee-panel-title',
-        textContent: 'Thanks, your estimate request has been saved.'
+        textContent: 'Thanks, your estimate request has been sent.'
     });
     const description = createElement('p', {
         className: 'ee-panel-copy',
         textContent: options.leadId
-            ? `Lead reference #${options.leadId} was created successfully and sent to ${options.businessName}.`
+            ? `Request reference #${options.leadId} was sent successfully to ${options.businessName}.`
             : `Your request was submitted successfully to ${options.businessName}.`
     });
     const helper = createElement('p', {
         className: 'ee-step-helper',
-        textContent: 'You can close this widget or start another estimate right away.'
+        textContent: 'You can close this window or start another estimate right away.'
     });
 
     const actions = createElement('div', { className: 'ee-actions' });
     const startOverButton = createElement('button', {
         className: 'ee-secondary-action',
-        textContent: 'Start Another',
+        textContent: 'Start Another Estimate',
         attributes: { type: 'button' }
     });
     const closeButton = createElement('button', {

@@ -21,11 +21,11 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
     });
     const description = createElement('p', {
         className: 'ee-panel-copy',
-        textContent: 'Choose a few inputs below and we will calculate the estimate on the server in real time.'
+        textContent: 'Choose a few details below and we will prepare an estimate right away.'
     });
     const helper = createElement('p', {
         className: 'ee-step-helper',
-        textContent: 'Live pricing uses your active client configuration.'
+        textContent: 'Pricing shown here uses the latest settings for this company.'
     });
 
     const form = createElement('form', { className: 'ee-form' });
@@ -61,7 +61,7 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
             value: 'true',
             eyebrow: 'Yes',
             title: 'Apply bulk pricing',
-            copy: 'Use this when the project qualifies for the configured discount.'
+            copy: 'Use this when the project qualifies for discounted pricing.'
         },
         {
             value: 'false',
@@ -106,7 +106,7 @@ export function renderEstimateForm(options: EstimateFormOptions): HTMLElement {
 
             options.onSubmit(input);
         } catch (error) {
-            feedback.textContent = error instanceof Error ? error.message : 'Unable to validate the estimate request';
+            feedback.textContent = error instanceof Error ? error.message : 'Please review the estimate details and try again.';
         }
     });
 

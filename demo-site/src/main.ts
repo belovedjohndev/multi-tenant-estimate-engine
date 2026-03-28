@@ -26,23 +26,21 @@ let currentWidgetHost: HTMLElement | null = null;
 const supportEmail = 'support@belovedjohndev.com';
 const helloEmail = 'hello@belovedjohndev.com';
 const billingEmail = 'billing@belovedjohndev.com';
-const publicDemoEmail = 'demo@belovedjohn.com';
-const portalEmail = 'portal@belovedjohndev.com';
 
 const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     '/pricing': {
         title: 'Pricing',
-        intro: 'Estimate Engine keeps the offer simple so service businesses can launch website estimates quickly and manage incoming leads without extra setup overhead.',
+        intro: 'Estimate Engine keeps pricing simple so service businesses can launch website estimates quickly and manage incoming customer requests without extra setup overhead.',
         sections: [
             {
                 heading: 'Estimate Engine',
                 paragraphs: ['$49/month'],
                 bullets: [
                     'Website estimate widget',
-                    'Lead capture',
+                    'Customer request capture',
                     'Email notifications',
-                    'Client dashboard',
-                    'Pricing configuration',
+                    'Private dashboard',
+                    'Pricing settings',
                     'Cancel anytime'
                 ]
             },
@@ -54,18 +52,18 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     },
     '/terms': {
         title: 'Terms of Service',
-        intro: 'These terms govern access to Estimate Engine and apply to businesses using the software to provide online estimate and lead capture functionality.',
+        intro: 'These terms govern access to Estimate Engine and apply to businesses using the software to provide online estimate and request capture functionality.',
         sections: [
             {
                 heading: 'Business Use',
                 paragraphs: [
-                    'Estimate Engine is provided for business and commercial use. You are responsible for how your business configures and presents the estimator to your customers.'
+                    'Estimate Engine is provided for business and commercial use. You are responsible for how your business sets up and presents the estimate experience to your customers.'
                 ]
             },
             {
                 heading: 'Service Scope',
                 paragraphs: [
-                    'The service provides online estimate generation, lead capture, notification delivery, and client portal management tools.'
+                    'The service provides online estimate generation, request capture, notification delivery, and private dashboard management tools.'
                 ]
             },
             {
@@ -77,7 +75,7 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
             {
                 heading: 'Estimate Accuracy',
                 paragraphs: [
-                    'Estimate results depend on client-provided configuration and end-user input. We are not responsible for incorrect estimates caused by client configuration choices, incomplete setup, or inaccurate information entered by end users.'
+                    'Estimate results depend on company pricing settings and customer input. We are not responsible for incorrect estimates caused by setup choices, incomplete pricing details, or inaccurate information entered by customers.'
                 ]
             },
             {
@@ -94,24 +92,24 @@ const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     },
     '/privacy': {
         title: 'Privacy Policy',
-        intro: 'This policy explains how Estimate Engine handles information submitted through the public estimator and lead capture experience.',
+        intro: 'This policy explains how Estimate Engine handles information submitted through the public estimate experience and request forms.',
         sections: [
             {
                 heading: 'Information We Collect',
                 paragraphs: [
-                    'We collect information submitted through estimate and lead forms, which may include name, email address, phone number, address, and estimate-related input.'
+                    'We collect information submitted through estimate and request forms, which may include name, email address, phone number, address, and estimate-related details.'
                 ]
             },
             {
                 heading: 'How Data Is Used',
                 paragraphs: [
-                    'Submitted data is stored securely and used to deliver estimate results, notify the client who owns the estimator, and support the normal operation of the service.'
+                    'Submitted data is stored securely and used to deliver estimate results, notify the company that owns the estimate experience, and support the normal operation of the service.'
                 ]
             },
             {
                 heading: 'Client Access',
                 paragraphs: [
-                    'Lead and estimate data is accessible only to the client account that owns the estimator experience receiving that submission, along with authorized service providers supporting the platform.'
+                    'Estimate requests and related details are accessible only to the company account that owns the estimate experience receiving that submission, along with authorized service providers supporting the platform.'
                 ]
             },
             {
@@ -189,7 +187,7 @@ function buildShellMarkup(pathname: SitePath): string {
             <footer class="site-footer">
                 <div>
                     <p class="site-footer__title">Estimate Engine</p>
-                    <p class="site-footer__copy">Instant website estimates, lead capture, and client operations for service businesses.</p>
+                    <p class="site-footer__copy">Website estimates, customer requests, and private dashboard tools for service businesses.</p>
                 </div>
                 <nav class="footer-nav" aria-label="Footer">
                     <a href="/pricing">Pricing</a>
@@ -206,24 +204,24 @@ function buildHomeMarkup(): string {
     return `
         <section class="hero">
             <div class="hero-copy-block">
-                <p class="eyebrow">Estimate Engine SaaS</p>
-                <h1>Public demo powered by the real embeddable widget.</h1>
+                <p class="eyebrow">Estimate Engine Demo</p>
+                <h1>See the website estimate experience in action.</h1>
                 <p class="hero-copy">
-                    This homepage is the public Estimate Engine demo for ${escapeHtml(publicDemoEmail)}, mounted from
-                    the real TypeScript widget and backed by the live platform API.
+                    This page shows the live estimate experience customers see on your website, using the same pricing
+                    and request flow your business would use in production.
                 </p>
                 <div class="hero-pill-row">
-                    <span class="hero-pill">Tenant: ${escapeHtml(demoConfig.clientId)}</span>
-                    <span class="hero-pill">API base: ${escapeHtml(demoConfig.apiBaseUrl)}</span>
-                    <span class="hero-pill">Live API-backed widget</span>
+                    <span class="hero-pill">Live website estimate</span>
+                    <span class="hero-pill">Customer request flow</span>
+                    <span class="hero-pill">Private dashboard available</span>
                 </div>
             </div>
             <aside class="hero-note">
-                <p class="card-label">Product Split</p>
-                <h2>Public demo, custom brand example, private portal.</h2>
+                <p class="card-label">How It Works</p>
+                <h2>Public estimate experience, branded example, private dashboard.</h2>
                 <p class="surface-copy">
-                    Keep the public demo under Estimate Engine branding, use icthvac.com as the example of a
-                    client-aligned instant-estimate experience, and keep operations inside the separate authenticated portal.
+                    Show the public estimate experience under Estimate Engine branding, preview a branded customer
+                    example with icthvac.com, and keep company management in a private dashboard.
                 </p>
             </aside>
         </section>
@@ -232,14 +230,13 @@ function buildHomeMarkup(): string {
             <article class="surface-card">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Live Widget</p>
-                        <h2>Actual product flow</h2>
+                        <p class="card-label">Estimate Experience</p>
+                        <h2>See the customer journey</h2>
                     </div>
-                    <p class="surface-meta">Mounted from /widget/src</p>
+                    <p class="surface-meta">Live example</p>
                 </div>
                 <p class="surface-copy">
-                    This card mounts the real widget implementation against the live API so the demo reflects the code
-                    that actually ships with the platform.
+                    This is the live estimate flow a website visitor would use to review pricing and send a request.
                 </p>
                 <div class="widget-zone">
                     <div class="widget-preview-shell">
@@ -250,38 +247,37 @@ function buildHomeMarkup(): string {
             <article class="surface-card surface-card--guide">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Dedicated Portal</p>
-                        <h2>Private client operations live here</h2>
+                        <p class="card-label">Private Dashboard</p>
+                        <h2>Manage requests and company settings</h2>
                     </div>
                 </div>
                 <p class="surface-copy">
-                    The screenshot fits best beside the live widget because it shows the other side of the product:
-                    the public estimator demo comes from ${escapeHtml(publicDemoEmail)}, while the private portal for
-                    ${escapeHtml(portalEmail)} handles authenticated client-only work.
+                    The screenshot shows the private side of the product: customers use the public estimate experience,
+                    while your team signs in to review requests and update company settings.
                 </p>
                 <div class="portal-pill-row" aria-label="Portal context">
-                    <span class="hero-pill">Public demo: ${escapeHtml(publicDemoEmail)}</span>
-                    <span class="hero-pill">Portal: ${escapeHtml(portalEmail)}</span>
-                    <span class="hero-pill">Custom instant-estimate example: icthvac.com</span>
+                    <span class="hero-pill">Public website view</span>
+                    <span class="hero-pill">Private dashboard</span>
+                    <span class="hero-pill">Branded example: icthvac.com</span>
                 </div>
                 <figure class="portal-shot">
                     <img
                         src="/portal/portal-belovedjohndev.png"
-                        alt="Estimate Engine client portal login screen"
+                        alt="Estimate Engine private dashboard sign-in screen"
                     />
                 </figure>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Public side</h3>
-                        <p>The left card remains the embeddable Estimate Engine demo that website visitors interact with first.</p>
+                        <h3>Website experience</h3>
+                        <p>Customers start here to review pricing and request an estimate from your business.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Private side</h3>
-                        <p>This screenshot shows the authenticated portal where leads, pricing controls, and tenant settings stay isolated for the client.</p>
+                        <h3>Company dashboard</h3>
+                        <p>Review customer requests, update pricing settings, and manage company details in one place.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Custom-brand example</h3>
-                        <p>icthvac.com is the example of how the instant-estimate experience can be aligned to a customer brand without changing what the demo represents.</p>
+                        <h3>Brand-ready setup</h3>
+                        <p>icthvac.com shows how the estimate experience can match a customer brand while keeping the same product workflow.</p>
                     </div>
                 </div>
             </article>
@@ -326,7 +322,7 @@ function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
                 <p class="card-label">Estimate Engine</p>
                 <h2>Business-ready public information.</h2>
                 <p class="surface-copy">
-                    These pages are available on the public demo site to support customer review, onboarding, and payment processor compliance.
+                    These pages are available on the public site to support customer review, onboarding, and payment processor compliance.
                 </p>
             </aside>
         </section>
@@ -361,7 +357,7 @@ function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
                             <p class="card-label">Ready</p>
                             <h2>Ready to add instant estimates to your website?</h2>
                             <p class="surface-copy">
-                                Launch a public estimator, capture leads automatically, and manage your pricing from the client portal.
+                                Launch website estimates, capture customer requests automatically, and manage pricing from your private dashboard.
                             </p>
                             <a class="cta-link" href="mailto:${escapeHtmlAttribute(helloEmail)}">Contact</a>
                         </aside>

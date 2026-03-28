@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import { getPortalClientSettings } from '../application/getPortalClientSettings';
 import { listPortalLeads } from '../application/listPortalLeads';
+import { resetPortalDemoState } from '../application/resetPortalDemoState';
 import { updatePortalClientSettings } from '../application/updatePortalClientSettings';
 import { requirePortalAuth, AuthenticatedPortalRequest } from '../http/auth';
 import { sendSuccess } from '../http/api';
@@ -28,6 +29,21 @@ router.put('/client', requirePortalAuth, async (req: Request, res: Response, nex
             request.portalSession.user.id
         );
         return sendSuccess(res, updatedSettings);
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post('/demo/reset', requirePortalAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const request = req as AuthenticatedPortalRequest;
+        const resetResult = await resetPortalDemoState({
+            clientId: request.portalSession.client.id,
+            clientName: request.portalSession.client.name,
+            actorClientUserId: request.portalSession.user.id
+        });
+
+        return sendSuccess(res, resetResult);
     } catch (error) {
         return next(error);
     }

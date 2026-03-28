@@ -61,7 +61,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
                 phase: 'error',
                 error: {
                     context: 'config',
-                    message: getErrorMessage(error, 'Unable to load estimator configuration.')
+                    message: getErrorMessage(error, 'Unable to load pricing settings.')
                 }
             });
         }
@@ -102,7 +102,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
     function renderPhase(state: WidgetState): HTMLElement {
         switch (state.phase) {
             case 'loadingConfig':
-                return renderLoadingState('Loading configuration', 'Fetching branding and estimator settings from the server.');
+                return renderLoadingState('Loading details', 'Getting company branding and pricing settings.');
             case 'estimateForm':
                 return renderEstimateForm({
                     estimatorConfig: state.clientConfig!.config.estimatorConfig,
@@ -113,7 +113,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
                     }
                 });
             case 'estimating':
-                return renderLoadingState('Calculating estimate', 'Submitting the request to the backend.');
+                return renderLoadingState('Preparing your estimate', 'Reviewing the details and calculating pricing.');
             case 'estimateResult':
                 return renderEstimateResult({
                     input: state.estimateInput!,
@@ -147,7 +147,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
                     }
                 });
             case 'submittingLead':
-                return renderLoadingState('Submitting lead', 'Saving contact details and estimate snapshot.');
+                return renderLoadingState('Sending your request', 'Saving your contact details and estimate.');
             case 'success':
                 return renderSuccessState({
                     leadId: state.leadId,
@@ -224,7 +224,7 @@ export function mountWidget(container: HTMLElement, input: WidgetRuntimeConfigIn
                 phase: 'error',
                 error: {
                     context: 'lead',
-                    message: getErrorMessage(error, 'Unable to submit the lead.')
+                    message: getErrorMessage(error, 'Unable to send your request.')
                 }
             });
         }
@@ -289,7 +289,7 @@ function renderLoadingState(titleText: string, descriptionText: string): HTMLEle
     const description = createElement('p', { className: 'ee-panel-copy', textContent: descriptionText });
     const helper = createElement('p', {
         className: 'ee-step-helper',
-        textContent: 'This uses the same production API path as the embeddable widget.'
+        textContent: 'This is the same live estimate experience shown on your website.'
     });
     const spinner = createElement('div', { className: 'ee-loading-spinner' });
     const pulse = createElement('div', { className: 'ee-loading-bar' });
@@ -302,11 +302,11 @@ function renderLoadingState(titleText: string, descriptionText: string): HTMLEle
 function getRetryLabel(state: WidgetState): string {
     switch (state.error?.context) {
         case 'config':
-            return 'Retry Load';
+            return 'Try Again';
         case 'estimate':
-            return 'Back to Form';
+            return 'Update Details';
         case 'lead':
-            return 'Back to Lead Form';
+            return 'Back to Request Form';
         default:
             return 'Retry';
     }

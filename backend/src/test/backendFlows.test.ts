@@ -51,6 +51,21 @@ process.env.WIDGET_ORIGIN = 'http://localhost:4173';
 process.env.PORTAL_ORIGIN = portalOrigin;
 process.env.CLIENT_PORTAL_COOKIE_SECURE = 'false';
 process.env.CLIENT_PORTAL_COOKIE_SAME_SITE = 'lax';
+process.env.CLIENT_PORTAL_DEMO_RESET_CLIENT_ID = 'demo';
+process.env.CLIENT_PORTAL_DEMO_RESET_COMPANY_NAME = 'Demo Company';
+process.env.CLIENT_PORTAL_DEMO_RESET_PHONE = '111-1111';
+process.env.CLIENT_PORTAL_DEMO_RESET_NOTIFICATION_EMAIL = 'demo-notify@example.com';
+process.env.CLIENT_PORTAL_DEMO_RESET_LOGO_URL = 'https://example.com/demo-logo.png';
+process.env.CLIENT_PORTAL_DEMO_RESET_ESTIMATOR_CONFIG = JSON.stringify({
+    basePrice: 100,
+    multipliers: {
+        size: 1.5,
+        complexity: 2
+    },
+    discounts: {
+        bulk: 0.1
+    }
+});
 
 describe('critical backend flows', { concurrency: false }, () => {
     before(async () => undefined);
@@ -342,6 +357,112 @@ describe('critical backend flows', { concurrency: false }, () => {
             otherLeadsResponse.body.data?.leads.map((lead) => lead.email),
             ['other-lead@example.com']
         );
+    });
+
+    it('resets the demo tenant back to the default portal state', async () => {
+        const client = new TestHttpClient(baseUrl);
+        await loginAs(client, fixtures.demo);
+
+        const updateResponse = await client.request<{
+            currentConfigVersion: { id: number; versionNumber: number };
+        }>('/portal/client', {
+            method: 'PUT',
+            json: {
+                companyName: 'Temporary Demo Name',
+                logoUrl: 'https://example.com/temporary-demo-logo.png',
+                phone: '999-9999',
+                notificationEmail: 'temporary@example.com',
+                estimatorConfig: {
+                    basePrice: 175,
+                    multipliers: {
+                        size: 1.75,
+                        complexity: 2.25
+                    },
+                    discounts: {
+                        bulk: 0.2
+                    }
+                }
+            }
+        });
+
+        assert.equal(updateResponse.status, 200);
+        assert.equal(updateResponse.body.data?.currentConfigVersion.versionNumber, 2);
+
+        const activeVersion = await getActiveConfigVersion(fixtures.demo.clientId);
+        await insertLeadFixture({
+            clientId: fixtures.demo.clientId,
+            configVersionId: activeVersion.id,
+            email: 'reset-me@example.com'
+        });
+
+        const resetResponse = await client.request<{
+            reset: true;
+            clientId: string;
+            clearedLeadCount: number;
+            removedConfigVersionCount: number;
+        }>('/portal/demo/reset', {
+            method: 'POST'
+        });
+
+        assert.equal(resetResponse.status, 200);
+        assert.equal(resetResponse.body.data?.reset, true);
+        assert.equal(resetResponse.body.data?.clientId, fixtures.demo.clientSlug);
+        assert.equal(resetResponse.body.data?.clearedLeadCount, 1);
+        assert.equal(resetResponse.body.data?.removedConfigVersionCount, 1);
+
+        const settingsResponse = await client.request<{
+            companyName: string;
+            logoUrl?: string;
+            phone?: string;
+            notificationEmail?: string;
+            currentConfigVersion: { versionNumber: number };
+            configHistory: Array<{ versionNumber: number; isActive: boolean }>;
+            estimatorConfig: {
+                basePrice: number;
+                multipliers: { size: number; complexity: number };
+                discounts: { bulk: number };
+            };
+        }>('/portal/client');
+        const leadsResponse = await client.request<{
+            leads: Array<{ email: string }>;
+            summary: { totalLeadCount: number };
+        }>('/me/leads');
+
+        assert.equal(settingsResponse.status, 200);
+        assert.equal(settingsResponse.body.data?.companyName, 'Demo Company');
+        assert.equal(settingsResponse.body.data?.logoUrl, 'https://example.com/demo-logo.png');
+        assert.equal(settingsResponse.body.data?.phone, '111-1111');
+        assert.equal(settingsResponse.body.data?.notificationEmail, 'demo-notify@example.com');
+        assert.equal(settingsResponse.body.data?.currentConfigVersion.versionNumber, 1);
+        assert.equal(settingsResponse.body.data?.configHistory.length, 1);
+        assert.equal(settingsResponse.body.data?.configHistory[0]?.versionNumber, 1);
+        assert.equal(settingsResponse.body.data?.configHistory[0]?.isActive, true);
+        assert.deepEqual(settingsResponse.body.data?.estimatorConfig, {
+            basePrice: 100,
+            multipliers: {
+                size: 1.5,
+                complexity: 2
+            },
+            discounts: {
+                bulk: 0.1
+            }
+        });
+
+        assert.equal(leadsResponse.status, 200);
+        assert.equal(leadsResponse.body.data?.summary.totalLeadCount, 0);
+        assert.deepEqual(leadsResponse.body.data?.leads, []);
+    });
+
+    it('rejects demo reset for non-demo tenants', async () => {
+        const client = new TestHttpClient(baseUrl);
+        await loginAs(client, fixtures.other);
+
+        const resetResponse = await client.request('/portal/demo/reset', {
+            method: 'POST'
+        });
+
+        assert.equal(resetResponse.status, 403);
+        assert.equal(resetResponse.body.error?.code, 'demo_reset_unavailable');
     });
 });
 

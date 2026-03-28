@@ -30,6 +30,13 @@ export class UnauthorizedError extends AppError {
     }
 }
 
+export class ForbiddenError extends AppError {
+    constructor(message: string, code = 'forbidden') {
+        super(403, code, message);
+        this.name = 'ForbiddenError';
+    }
+}
+
 export function isAppError(error: unknown): error is AppError {
     return error instanceof AppError;
 }
