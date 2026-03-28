@@ -26,6 +26,8 @@ let currentWidgetHost: HTMLElement | null = null;
 const supportEmail = 'support@belovedjohndev.com';
 const helloEmail = 'hello@belovedjohndev.com';
 const billingEmail = 'billing@belovedjohndev.com';
+const publicDemoEmail = 'demo@belovedjohn.com';
+const portalEmail = 'portal@belovedjohndev.com';
 
 const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     '/pricing': {
@@ -207,8 +209,8 @@ function buildHomeMarkup(): string {
                 <p class="eyebrow">Estimate Engine SaaS</p>
                 <h1>Public demo powered by the real embeddable widget.</h1>
                 <p class="hero-copy">
-                    The homepage now mounts the actual TypeScript widget again, using Estimate Engine branding and
-                    the live API-backed widget flow that ships with the platform.
+                    This homepage is the public Estimate Engine demo for ${escapeHtml(publicDemoEmail)}, mounted from
+                    the real TypeScript widget and backed by the live platform API.
                 </p>
                 <div class="hero-pill-row">
                     <span class="hero-pill">Tenant: ${escapeHtml(demoConfig.clientId)}</span>
@@ -217,11 +219,11 @@ function buildHomeMarkup(): string {
                 </div>
             </div>
             <aside class="hero-note">
-                <p class="card-label">Best Move</p>
-                <h2>Real widget code, improved design.</h2>
+                <p class="card-label">Product Split</p>
+                <h2>Public demo, custom brand example, private portal.</h2>
                 <p class="surface-copy">
-                    This keeps the product on the current backend contract while moving the real widget closer to the
-                    polished modal style from the copied bundle you wanted to reuse.
+                    Keep the public demo under Estimate Engine branding, use icthvac.com as the example of a
+                    client-aligned instant-estimate experience, and keep operations inside the separate authenticated portal.
                 </p>
             </aside>
         </section>
@@ -248,22 +250,38 @@ function buildHomeMarkup(): string {
             <article class="surface-card surface-card--guide">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">What Changed</p>
-                        <h2>Why this is the stronger path</h2>
+                        <p class="card-label">Dedicated Portal</p>
+                        <h2>Private client operations live here</h2>
                     </div>
                 </div>
+                <p class="surface-copy">
+                    The screenshot fits best beside the live widget because it shows the other side of the product:
+                    the public estimator demo comes from ${escapeHtml(publicDemoEmail)}, while the private portal for
+                    ${escapeHtml(portalEmail)} handles authenticated client-only work.
+                </p>
+                <div class="portal-pill-row" aria-label="Portal context">
+                    <span class="hero-pill">Public demo: ${escapeHtml(publicDemoEmail)}</span>
+                    <span class="hero-pill">Portal: ${escapeHtml(portalEmail)}</span>
+                    <span class="hero-pill">Custom instant-estimate example: icthvac.com</span>
+                </div>
+                <figure class="portal-shot">
+                    <img
+                        src="/portal/portal-belovedjohndev.png"
+                        alt="Estimate Engine client portal login screen"
+                    />
+                </figure>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Real API contract</h3>
-                        <p>The homepage widget now uses the current backend endpoints and payloads instead of a mock compatibility layer.</p>
+                        <h3>Public side</h3>
+                        <p>The left card remains the embeddable Estimate Engine demo that website visitors interact with first.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>UI port in progress</h3>
-                        <p>The real widget now borrows the stronger launcher, modal, and panel styling ideas from the copied bundle.</p>
+                        <h3>Private side</h3>
+                        <p>This screenshot shows the authenticated portal where leads, pricing controls, and tenant settings stay isolated for the client.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Estimate Engine branded</h3>
-                        <p>The demo widget now uses your own name, colors, and logo instead of exposing client-specific branding.</p>
+                        <h3>Custom-brand example</h3>
+                        <p>icthvac.com is the example of how the instant-estimate experience can be aligned to a customer brand without changing what the demo represents.</p>
                     </div>
                 </div>
             </article>
