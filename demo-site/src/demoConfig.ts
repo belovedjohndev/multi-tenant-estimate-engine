@@ -8,7 +8,7 @@ export const demoConfig: WidgetRuntimeConfigInput = {
     launcherLabel: readOptionalEnv('VITE_LAUNCHER_LABEL') || 'Try The Live Widget',
     modalTitle: readOptionalEnv('VITE_MODAL_TITLE') || 'Estimate Engine Demo',
     companyName: readOptionalEnv('VITE_COMPANY_NAME') || 'Estimate Engine',
-    logoUrl: readOptionalEnv('VITE_LOGO_URL') || '/brand/estimate-engine-logo.png',
+    logoUrl: readOptionalEnv('VITE_LOGO_URL') || '/brand/widget-demo-logo.png',
     primaryColor: readOptionalEnv('VITE_PRIMARY_COLOR') || '#0f3554',
     secondaryColor: readOptionalEnv('VITE_SECONDARY_COLOR') || '#2ea8ff'
 };
