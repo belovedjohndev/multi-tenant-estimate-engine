@@ -1,4 +1,5 @@
 import express, { NextFunction, Request, Response } from 'express';
+import { getPortalBillingSummary } from '../application/getPortalBillingSummary';
 import { getPortalClientSettings } from '../application/getPortalClientSettings';
 import { listPortalLeads } from '../application/listPortalLeads';
 import { resetPortalDemoState } from '../application/resetPortalDemoState';
@@ -8,6 +9,16 @@ import { sendSuccess } from '../http/api';
 import { LeadListQueryDto, parseLeadListQuery, parsePortalClientSettingsUpdate } from '../http/validation';
 
 const router = express.Router();
+
+router.get('/billing', requirePortalAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const request = req as AuthenticatedPortalRequest;
+        const billingSummary = await getPortalBillingSummary(request.portalSession.client.id);
+        return sendSuccess(res, billingSummary);
+    } catch (error) {
+        return next(error);
+    }
+});
 
 router.get('/client', requirePortalAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {

@@ -56,6 +56,7 @@ process.env.CLIENT_PORTAL_DEMO_RESET_COMPANY_NAME = 'Demo Company';
 process.env.CLIENT_PORTAL_DEMO_RESET_PHONE = '111-1111';
 process.env.CLIENT_PORTAL_DEMO_RESET_NOTIFICATION_EMAIL = 'demo-notify@example.com';
 process.env.CLIENT_PORTAL_DEMO_RESET_LOGO_URL = 'https://example.com/demo-logo.png';
+process.env.CLIENT_BILLING_ENFORCEMENT = 'false';
 process.env.CLIENT_PORTAL_DEMO_RESET_ESTIMATOR_CONFIG = JSON.stringify({
     basePrice: 100,
     multipliers: {
@@ -343,12 +344,97 @@ describe('critical backend flows', { concurrency: false }, () => {
     it('rejects protected portal access without authentication', async () => {
         const client = new TestHttpClient(baseUrl);
 
+        const billingResponse = await client.request('/portal/billing');
         const settingsResponse = await client.request('/portal/client');
         const leadsResponse = await client.request('/me/leads');
 
+        assert.equal(billingResponse.status, 401);
+        assert.equal(billingResponse.body.error?.code, 'missing_session_cookie');
         assert.equal(settingsResponse.status, 401);
         assert.equal(settingsResponse.body.error?.code, 'missing_session_cookie');
         assert.equal(leadsResponse.status, 401);
+    });
+
+    it('returns a not-enforced billing summary for seeded tenants without subscriptions', async () => {
+        const client = new TestHttpClient(baseUrl);
+        await loginAs(client, fixtures.demo);
+
+        const billingResponse = await client.request<{
+            enforcementState: 'not_enforced' | 'enforced';
+            subscription: {
+                status: string | null;
+                planCode: string | null;
+                billingInterval: string | null;
+                currencyCode: string | null;
+                unitAmountMinor: number | null;
+                currentPeriodStartsAt: string | null;
+                currentPeriodEndsAt: string | null;
+                cancelAtPeriodEnd: boolean;
+                canceledAt: string | null;
+                endedAt: string | null;
+            };
+            entitlements: {
+                portalAccess: boolean;
+                widgetPublish: boolean;
+                brandedExperience: boolean;
+            };
+        }>('/portal/billing');
+
+        assert.equal(billingResponse.status, 200);
+        assert.equal(billingResponse.body.data?.enforcementState, 'not_enforced');
+        assert.equal(billingResponse.body.data?.subscription.status, null);
+        assert.equal(billingResponse.body.data?.subscription.planCode, null);
+        assert.equal(billingResponse.body.data?.subscription.billingInterval, null);
+        assert.equal(billingResponse.body.data?.subscription.currencyCode, null);
+        assert.equal(billingResponse.body.data?.subscription.unitAmountMinor, null);
+        assert.equal(billingResponse.body.data?.subscription.currentPeriodStartsAt, null);
+        assert.equal(billingResponse.body.data?.subscription.currentPeriodEndsAt, null);
+        assert.equal(billingResponse.body.data?.subscription.cancelAtPeriodEnd, false);
+        assert.equal(billingResponse.body.data?.subscription.canceledAt, null);
+        assert.equal(billingResponse.body.data?.subscription.endedAt, null);
+        assert.equal(billingResponse.body.data?.entitlements.portalAccess, true);
+        assert.equal(billingResponse.body.data?.entitlements.widgetPublish, true);
+        assert.equal(billingResponse.body.data?.entitlements.brandedExperience, true);
+    });
+
+    it('returns a not-enforced billing summary for newly signed-up tenants without subscriptions', async () => {
+        const client = new TestHttpClient(baseUrl);
+
+        const signupResponse = await client.request('/auth/signup', {
+            method: 'POST',
+            json: {
+                clientId: 'billing-acme',
+                companyName: 'Billing Acme',
+                fullName: 'Billing Owner',
+                email: 'billing-owner@example.com',
+                password: 'change-me-123'
+            }
+        });
+
+        assert.equal(signupResponse.status, 201);
+
+        const billingResponse = await client.request<{
+            enforcementState: 'not_enforced' | 'enforced';
+            subscription: {
+                status: string | null;
+                planCode: string | null;
+                billingInterval: string | null;
+            };
+            entitlements: {
+                portalAccess: boolean;
+                widgetPublish: boolean;
+                brandedExperience: boolean;
+            };
+        }>('/portal/billing');
+
+        assert.equal(billingResponse.status, 200);
+        assert.equal(billingResponse.body.data?.enforcementState, 'not_enforced');
+        assert.equal(billingResponse.body.data?.subscription.status, null);
+        assert.equal(billingResponse.body.data?.subscription.planCode, null);
+        assert.equal(billingResponse.body.data?.subscription.billingInterval, null);
+        assert.equal(billingResponse.body.data?.entitlements.portalAccess, true);
+        assert.equal(billingResponse.body.data?.entitlements.widgetPublish, true);
+        assert.equal(billingResponse.body.data?.entitlements.brandedExperience, true);
     });
 
     it('does not create a new config version when pricing JSON is unchanged', async () => {
