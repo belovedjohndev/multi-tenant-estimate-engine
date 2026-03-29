@@ -33,6 +33,20 @@ export async function loginPortal(input: {
     });
 }
 
+export async function signupPortal(input: {
+    clientId: string;
+    companyName: string;
+    fullName: string;
+    email: string;
+    password: string;
+    phone?: string;
+}): Promise<PortalLoginResponse> {
+    return requestPortalApi<PortalLoginResponse>('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(input)
+    });
+}
+
 export async function fetchPortalSession(): Promise<PortalSession> {
     return requestPortalApi<PortalSession>('/auth/me', {
         method: 'GET'

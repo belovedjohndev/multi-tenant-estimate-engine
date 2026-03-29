@@ -37,6 +37,13 @@ export class ForbiddenError extends AppError {
     }
 }
 
+export class ConflictError extends AppError {
+    constructor(message: string, code = 'conflict') {
+        super(409, code, message);
+        this.name = 'ConflictError';
+    }
+}
+
 export function isAppError(error: unknown): error is AppError {
     return error instanceof AppError;
 }

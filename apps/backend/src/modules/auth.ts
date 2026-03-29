@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import { authenticatePortalUser } from '../application/authenticatePortalUser';
 import { getPortalSessionFromContext } from '../application/getPortalSession';
+import { registerPortalTenant } from '../application/registerPortalTenant';
 import { logoutPortalSession } from '../application/logoutPortalSession';
 import { requirePortalAuth, AuthenticatedPortalRequest } from '../http/auth';
 import { sendSuccess } from '../http/api';
@@ -9,7 +10,7 @@ import {
     readOptionalPortalSessionTokenFromRequest,
     setPortalSessionCookie
 } from '../http/cookies';
-import { parsePortalLoginRequest } from '../http/validation';
+import { parsePortalLoginRequest, parsePortalSignupRequest } from '../http/validation';
 
 const router = express.Router();
 
@@ -17,6 +18,26 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
     try {
         const body = parsePortalLoginRequest(req.body);
         const session = await authenticatePortalUser(body);
+        setPortalSessionCookie(res, session.token, new Date(session.expiresAt));
+
+        return sendSuccess(
+            res,
+            {
+                expiresAt: session.expiresAt,
+                user: session.user,
+                client: session.client
+            },
+            201
+        );
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = parsePortalSignupRequest(req.body);
+        const session = await registerPortalTenant(body);
         setPortalSessionCookie(res, session.token, new Date(session.expiresAt));
 
         return sendSuccess(

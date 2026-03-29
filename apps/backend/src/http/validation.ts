@@ -3,6 +3,7 @@ import { ValidationError } from '../application/errors';
 import { AuthenticatePortalUserRequest } from '../application/authenticatePortalUser';
 import { EstimateRequest } from '../application/calculateEstimate';
 import { CreateLeadRequest } from '../application/createLead';
+import { RegisterPortalTenantRequest } from '../application/registerPortalTenant';
 import { UpdatePortalClientSettingsRequest } from '../application/updatePortalClientSettings';
 import { EstimateInput, EstimateResponse, parseEstimatorConfigRecord } from '../domain/estimate';
 
@@ -71,6 +72,19 @@ export function parsePortalLoginRequest(body: unknown): AuthenticatePortalUserRe
         clientId: requireNonEmptyString(parsedBody.clientId, 'clientId is required', 'invalid_body'),
         email: requireEmail(parsedBody.email),
         password: requirePassword(parsedBody.password)
+    };
+}
+
+export function parsePortalSignupRequest(body: unknown): RegisterPortalTenantRequest {
+    const parsedBody = requireObject(body, 'Request body must be a JSON object');
+
+    return {
+        clientId: requireClientId(parsedBody.clientId),
+        companyName: requireLimitedNonEmptyString(parsedBody.companyName, 'companyName is required', 255),
+        fullName: requireLimitedNonEmptyString(parsedBody.fullName, 'fullName is required', 255),
+        email: requireEmail(parsedBody.email),
+        password: requirePassword(parsedBody.password),
+        phone: parseOptionalStringField(parsedBody.phone, 'phone', 32)
     };
 }
 
@@ -169,12 +183,39 @@ function requirePassword(value: unknown): string {
     return value;
 }
 
-function parseOptionalStringField(value: unknown, fieldName: string): string | undefined {
+function parseOptionalStringField(value: unknown, fieldName: string, maxLength?: number): string | undefined {
     if (value === undefined || value === null) {
         return undefined;
     }
 
     const parsedValue = requireNonEmptyString(value, `${fieldName} must be a non-empty string`, 'invalid_body');
+
+    if (maxLength !== undefined && parsedValue.length > maxLength) {
+        throw new ValidationError(`${fieldName} must be ${maxLength} characters or fewer`, 'invalid_body');
+    }
+
+    return parsedValue;
+}
+
+function requireClientId(value: unknown): string {
+    const normalizedValue = requireNonEmptyString(value, 'clientId is required', 'invalid_body').toLowerCase();
+
+    if (!CLIENT_ID_PATTERN.test(normalizedValue)) {
+        throw new ValidationError(
+            'clientId must be 3-50 characters and contain only lowercase letters, numbers, or hyphens',
+            'invalid_body'
+        );
+    }
+
+    return normalizedValue;
+}
+
+function requireLimitedNonEmptyString(value: unknown, message: string, maxLength: number): string {
+    const parsedValue = requireNonEmptyString(value, message, 'invalid_body');
+
+    if (parsedValue.length > maxLength) {
+        throw new ValidationError(`${message.replace(' is required', '')} must be ${maxLength} characters or fewer`, 'invalid_body');
+    }
 
     return parsedValue;
 }
@@ -279,3 +320,4 @@ function requirePositiveInteger(value: unknown, message: string): number {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CLIENT_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/;

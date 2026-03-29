@@ -6,16 +6,20 @@ import {
     loginPortal,
     logoutPortal,
     resetPortalDemo,
+    signupPortal,
     updatePortalClientSettings
 } from './portalApi';
 import { PortalClientSettings, PortalLeadsResponse, PortalSession } from './portalTypes';
 import './styles.css';
 
-type PortalStatus = 'signedOut' | 'loading' | 'signingIn' | 'ready' | 'error';
+type PortalStatus = 'signedOut' | 'loading' | 'signingIn' | 'signingUp' | 'ready' | 'error';
+type AuthMode = 'login' | 'signup';
+type DemoAccessField = 'clientId' | 'email' | 'password';
 
 interface AppState {
     portal: {
         status: PortalStatus;
+        authMode: AuthMode;
         session: PortalSession | null;
         leads: PortalLeadsResponse | null;
         settings: PortalClientSettings | null;
@@ -28,6 +32,16 @@ interface AppState {
             clientId: string;
             email: string;
             password: string;
+            showPassword: boolean;
+        };
+        signupForm: {
+            companyName: string;
+            clientId: string;
+            fullName: string;
+            email: string;
+            phone: string;
+            password: string;
+            confirmPassword: string;
             showPassword: boolean;
         };
     };
@@ -53,6 +67,7 @@ const portalTitle = normalizePortalTitle(portalConfig.portalTitle);
 const state: AppState = {
     portal: {
         status: 'loading',
+        authMode: 'login',
         session: null,
         leads: null,
         settings: null,
@@ -66,7 +81,8 @@ const state: AppState = {
             email: '',
             password: '',
             showPassword: false
-        }
+        },
+        signupForm: createInitialSignupForm()
     }
 };
 
@@ -91,6 +107,7 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
 
         state.portal = {
             status: 'ready',
+            authMode: state.portal.authMode,
             session,
             leads,
             settings,
@@ -103,7 +120,11 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
                 ...state.portal.loginForm,
                 password: '',
                 showPassword: false
-            }
+            },
+            signupForm: createInitialSignupForm({
+                clientId: state.portal.signupForm.clientId,
+                email: state.portal.signupForm.email
+            })
         };
     } catch (error) {
         const statusCode = error instanceof Error && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : null;
@@ -111,6 +132,7 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
 
         state.portal = {
             status: isUnauthorized && options?.suppressErrorOnUnauthorized ? 'signedOut' : 'error',
+            authMode: state.portal.authMode,
             session: null,
             leads: null,
             settings: null,
@@ -125,6 +147,12 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             loginForm: {
                 ...state.portal.loginForm,
                 password: '',
+                showPassword: false
+            },
+            signupForm: {
+                ...state.portal.signupForm,
+                password: '',
+                confirmPassword: '',
                 showPassword: false
             }
         };
@@ -161,7 +189,8 @@ function renderApp() {
 }
 
 function renderPortalSurface(): string {
-    const { status, session, leads, settings, errorMessage } = state.portal;
+    const { status, session, leads, settings, errorMessage, authMode } = state.portal;
+    const isSignupMode = authMode === 'signup';
 
     if (status === 'ready' && session && leads && settings) {
         return renderDashboard(session, leads, settings);
@@ -172,16 +201,26 @@ function renderPortalSurface(): string {
             <div class="surface-card surface-card--auth">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">Secure Sign-In</p>
-                        <h2>Access the private dashboard</h2>
+                        <p class="card-label">${isSignupMode ? 'Create Account' : 'Secure Sign-In'}</p>
+                        <h2>${isSignupMode ? 'Create your company account' : 'Access the private dashboard'}</h2>
                     </div>
-                    <p class="surface-meta surface-meta--compact">Private access</p>
+                    <p class="surface-meta surface-meta--compact">${isSignupMode ? 'New account' : 'Private access'}</p>
                 </div>
                 <p class="surface-copy">
-                    Sign in to review customer requests, update pricing settings, and manage your company details.
+                    ${
+                        isSignupMode
+                            ? 'Create your account to launch a new company dashboard with your own company ID, pricing settings, and branded portal access.'
+                            : 'Sign in to review customer requests, update pricing settings, and manage your company details.'
+                    }
                 </p>
                 ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
-                ${status === 'loading' || status === 'signingIn' ? renderPortalLoading(status) : renderLoginForm()}
+                ${
+                    status === 'loading' || status === 'signingIn' || status === 'signingUp'
+                        ? renderPortalLoading(status)
+                        : isSignupMode
+                          ? renderSignupForm()
+                          : renderLoginForm()
+                }
             </div>
             <div class="surface-card surface-card--notes">
                 <div class="surface-header">
@@ -213,6 +252,8 @@ function renderPortalLoading(status: PortalStatus): string {
     const copy =
         status === 'signingIn'
             ? 'Checking your details and opening your dashboard.'
+            : status === 'signingUp'
+              ? 'Creating your company account and preparing your dashboard.'
             : 'Loading your dashboard and recent requests.';
 
     return `
@@ -229,6 +270,7 @@ function renderLoginForm(): string {
     const demoAccess = portalConfig.demoAccess;
 
     return `
+        ${renderAuthModeSwitch()}
         <form id="portal-login-form" class="portal-form">
             <label class="field">
                 <span class="field-label">Company ID</span>
@@ -279,16 +321,139 @@ function renderLoginForm(): string {
                     <p class="card-label">Demo Access</p>
                     <h3>Testing credentials</h3>
                 </div>
-                <button class="secondary-button" type="button" id="portal-fill-demo-button">Use Demo Access</button>
+                <button class="secondary-button demo-access-card__action" type="button" id="portal-fill-demo-button">
+                    Use Demo Access
+                </button>
             </div>
-            <p class="surface-copy">
-                Use these shared credentials for demo and testing.
+            <p class="surface-copy demo-access-card__copy">
+                Autofill the shared demo account or copy an individual value below for testing.
             </p>
-            <div class="demo-access-grid">
-                ${renderDemoAccessItem('Company ID', portalConfig.defaultClientId)}
-                ${renderDemoAccessItem('Email', demoAccess.email)}
-                ${renderDemoAccessItem('Password', demoAccess.password)}
+            <div class="demo-access-list">
+                ${renderDemoAccessItem('Company ID', portalConfig.defaultClientId, 'clientId')}
+                ${renderDemoAccessItem('Email', demoAccess.email, 'email')}
+                ${renderDemoAccessItem('Password', demoAccess.password, 'password')}
             </div>
+        </div>
+    `;
+}
+
+function renderSignupForm(): string {
+    const { companyName, clientId, fullName, email, phone, password, confirmPassword, showPassword } = state.portal.signupForm;
+
+    return `
+        ${renderAuthModeSwitch()}
+        <form id="portal-signup-form" class="portal-form">
+            <div class="settings-grid">
+                <label class="field">
+                    <span class="field-label">Company Name</span>
+                    <input
+                        class="field-input"
+                        name="companyName"
+                        type="text"
+                        value="${escapeHtml(companyName)}"
+                        placeholder="Acme Home Services"
+                        autocomplete="organization"
+                    />
+                </label>
+                <label class="field">
+                    <span class="field-label">Company ID</span>
+                    <input
+                        class="field-input"
+                        name="clientId"
+                        type="text"
+                        value="${escapeHtml(clientId)}"
+                        placeholder="acme-home"
+                        autocomplete="off"
+                    />
+                    <span class="field-hint">Used as your permanent company ID for sign-in and estimator setup.</span>
+                </label>
+                <label class="field">
+                    <span class="field-label">Full Name</span>
+                    <input
+                        class="field-input"
+                        name="fullName"
+                        type="text"
+                        value="${escapeHtml(fullName)}"
+                        placeholder="Jane Owner"
+                        autocomplete="name"
+                    />
+                </label>
+                <label class="field">
+                    <span class="field-label">Phone</span>
+                    <input
+                        class="field-input"
+                        name="phone"
+                        type="text"
+                        value="${escapeHtml(phone)}"
+                        placeholder="Optional"
+                        autocomplete="tel"
+                    />
+                </label>
+                <label class="field">
+                    <span class="field-label">Email</span>
+                    <input
+                        class="field-input"
+                        name="email"
+                        type="email"
+                        value="${escapeHtml(email)}"
+                        placeholder="owner@example.com"
+                        autocomplete="email"
+                    />
+                </label>
+                <label class="field">
+                    <span class="field-label">Password</span>
+                    <input
+                        class="field-input"
+                        id="portal-signup-password-input"
+                        name="password"
+                        type="${showPassword ? 'text' : 'password'}"
+                        value="${escapeHtml(password)}"
+                        placeholder="Create a password"
+                        autocomplete="new-password"
+                    />
+                </label>
+                <label class="field">
+                    <span class="field-label">Confirm Password</span>
+                    <input
+                        class="field-input"
+                        name="confirmPassword"
+                        type="${showPassword ? 'text' : 'password'}"
+                        value="${escapeHtml(confirmPassword)}"
+                        placeholder="Re-enter your password"
+                        autocomplete="new-password"
+                    />
+                </label>
+            </div>
+            <label class="password-toggle" for="portal-signup-password-toggle">
+                <input
+                    id="portal-signup-password-toggle"
+                    type="checkbox"
+                    ${showPassword ? 'checked' : ''}
+                />
+                <span>Show password fields</span>
+            </label>
+            <button class="primary-button" type="submit">Create Account</button>
+        </form>
+    `;
+}
+
+function renderAuthModeSwitch(): string {
+    return `
+        <div class="auth-mode-switch" role="tablist" aria-label="Authentication mode">
+            <button
+                class="auth-mode-button${state.portal.authMode === 'login' ? ' is-active' : ''}"
+                id="portal-auth-mode-login"
+                type="button"
+            >
+                Sign In
+            </button>
+            <button
+                class="auth-mode-button${state.portal.authMode === 'signup' ? ' is-active' : ''}"
+                id="portal-auth-mode-signup"
+                type="button"
+            >
+                Create Account
+            </button>
         </div>
     `;
 }
@@ -351,11 +516,18 @@ function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, set
     `;
 }
 
-function renderDemoAccessItem(label: string, value: string): string {
+function renderDemoAccessItem(label: string, value: string, field: DemoAccessField): string {
     return `
         <div class="demo-access-item">
             <span class="demo-access-item__label">${escapeHtml(label)}</span>
-            <strong class="demo-access-item__value">${escapeHtml(value)}</strong>
+            <code class="demo-access-item__value">${escapeHtml(value)}</code>
+            <button
+                class="secondary-button demo-access-item__copy"
+                type="button"
+                data-demo-copy-field="${field}"
+            >
+                Copy
+            </button>
         </div>
     `;
 }
@@ -512,6 +684,22 @@ function renderSettingsPanel(settings: PortalClientSettings): string {
 }
 
 function wirePortalEvents() {
+    const authModeLoginButton = document.getElementById('portal-auth-mode-login');
+
+    if (authModeLoginButton instanceof HTMLButtonElement) {
+        authModeLoginButton.addEventListener('click', () => {
+            setAuthMode('login');
+        });
+    }
+
+    const authModeSignupButton = document.getElementById('portal-auth-mode-signup');
+
+    if (authModeSignupButton instanceof HTMLButtonElement) {
+        authModeSignupButton.addEventListener('click', () => {
+            setAuthMode('signup');
+        });
+    }
+
     const loginForm = document.getElementById('portal-login-form');
 
     if (loginForm instanceof HTMLFormElement) {
@@ -552,6 +740,7 @@ function wirePortalEvents() {
             } catch (error) {
                 state.portal = {
                     status: 'error',
+                    authMode: 'login',
                     session: null,
                     leads: null,
                     settings: null,
@@ -560,7 +749,108 @@ function wirePortalEvents() {
                     isSavingSettings: false,
                     isResettingDemo: false,
                     isResetDialogOpen: false,
-                    loginForm: state.portal.loginForm
+                    loginForm: state.portal.loginForm,
+                    signupForm: {
+                        ...state.portal.signupForm,
+                        password: '',
+                        confirmPassword: '',
+                        showPassword: false
+                    }
+                };
+                renderApp();
+            }
+        });
+    }
+
+    const signupForm = document.getElementById('portal-signup-form');
+
+    if (signupForm instanceof HTMLFormElement) {
+        bindSignupField(signupForm, 'companyName');
+        bindSignupField(signupForm, 'clientId');
+        bindSignupField(signupForm, 'fullName');
+        bindSignupField(signupForm, 'phone');
+        bindSignupField(signupForm, 'email');
+        bindSignupField(signupForm, 'password');
+        bindSignupField(signupForm, 'confirmPassword');
+
+        const signupPasswordToggle = document.getElementById('portal-signup-password-toggle');
+
+        if (signupPasswordToggle instanceof HTMLInputElement) {
+            signupPasswordToggle.addEventListener('change', () => {
+                state.portal.signupForm.showPassword = signupPasswordToggle.checked;
+                renderApp();
+            });
+        }
+
+        signupForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(signupForm);
+            const signupFormState = {
+                companyName: String(formData.get('companyName') ?? '').trim(),
+                clientId: String(formData.get('clientId') ?? '').trim().toLowerCase(),
+                fullName: String(formData.get('fullName') ?? '').trim(),
+                phone: String(formData.get('phone') ?? '').trim(),
+                email: String(formData.get('email') ?? '').trim(),
+                password: String(formData.get('password') ?? ''),
+                confirmPassword: String(formData.get('confirmPassword') ?? ''),
+                showPassword: state.portal.signupForm.showPassword
+            };
+
+            state.portal.signupForm = signupFormState;
+
+            if (signupFormState.password !== signupFormState.confirmPassword) {
+                state.portal.errorMessage = 'Password confirmation must match before creating the account.';
+                renderApp();
+                return;
+            }
+
+            state.portal.status = 'signingUp';
+            state.portal.errorMessage = null;
+            renderApp();
+
+            try {
+                await signupPortal({
+                    clientId: signupFormState.clientId,
+                    companyName: signupFormState.companyName,
+                    fullName: signupFormState.fullName,
+                    email: signupFormState.email,
+                    password: signupFormState.password,
+                    phone: signupFormState.phone || undefined
+                });
+                state.portal.loginForm = {
+                    ...state.portal.loginForm,
+                    clientId: signupFormState.clientId,
+                    email: signupFormState.email,
+                    password: '',
+                    showPassword: false
+                };
+                await loadPortalDashboard();
+            } catch (error) {
+                state.portal = {
+                    status: 'error',
+                    authMode: 'signup',
+                    session: null,
+                    leads: null,
+                    settings: null,
+                    errorMessage: getErrorMessage(error, 'Unable to create your account.'),
+                    settingsMessage: null,
+                    isSavingSettings: false,
+                    isResettingDemo: false,
+                    isResetDialogOpen: false,
+                    loginForm: {
+                        ...state.portal.loginForm,
+                        clientId: signupFormState.clientId,
+                        email: signupFormState.email,
+                        password: '',
+                        showPassword: false
+                    },
+                    signupForm: {
+                        ...signupFormState,
+                        password: '',
+                        confirmPassword: '',
+                        showPassword: false
+                    }
                 };
                 renderApp();
             }
@@ -580,6 +870,34 @@ function wirePortalEvents() {
             renderApp();
         });
     }
+
+    const demoCopyButtons = document.querySelectorAll('[data-demo-copy-field]');
+
+    demoCopyButtons.forEach((element) => {
+        if (!(element instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        element.addEventListener('click', async () => {
+            const fieldName = element.dataset.demoCopyField;
+
+            if (!isDemoAccessField(fieldName)) {
+                return;
+            }
+
+            const originalLabel = element.textContent || 'Copy';
+            element.disabled = true;
+
+            const copied = await copyTextToClipboard(getDemoAccessValue(fieldName));
+
+            element.textContent = copied ? 'Copied' : 'Unavailable';
+
+            window.setTimeout(() => {
+                element.textContent = originalLabel;
+                element.disabled = false;
+            }, 1400);
+        });
+    });
 
     const refreshButton = document.getElementById('portal-refresh-button');
 
@@ -662,6 +980,7 @@ function wirePortalEvents() {
 
             state.portal = {
                 status: 'signedOut',
+                authMode: 'login',
                 session: null,
                 leads: null,
                 settings: null,
@@ -674,7 +993,11 @@ function wirePortalEvents() {
                     ...state.portal.loginForm,
                     password: '',
                     showPassword: false
-                }
+                },
+                signupForm: createInitialSignupForm({
+                    clientId: state.portal.loginForm.clientId,
+                    email: state.portal.loginForm.email
+                })
             };
             renderApp();
         });
@@ -756,12 +1079,113 @@ function bindLoginField(
     });
 }
 
+function bindSignupField(
+    signupForm: HTMLFormElement,
+    fieldName: 'companyName' | 'clientId' | 'fullName' | 'phone' | 'email' | 'password' | 'confirmPassword'
+) {
+    const field = signupForm.elements.namedItem(fieldName);
+
+    if (!(field instanceof HTMLInputElement)) {
+        return;
+    }
+
+    field.addEventListener('input', () => {
+        state.portal.signupForm[fieldName] = field.value;
+    });
+}
+
+function setAuthMode(mode: AuthMode) {
+    if (state.portal.authMode === mode) {
+        return;
+    }
+
+    if (mode === 'signup') {
+        state.portal.signupForm = {
+            ...state.portal.signupForm,
+            clientId: state.portal.signupForm.clientId || state.portal.loginForm.clientId,
+            email: state.portal.signupForm.email || state.portal.loginForm.email
+        };
+    } else {
+        state.portal.loginForm = {
+            ...state.portal.loginForm,
+            clientId: state.portal.signupForm.clientId || state.portal.loginForm.clientId,
+            email: state.portal.signupForm.email || state.portal.loginForm.email,
+            password: ''
+        };
+    }
+
+    state.portal.authMode = mode;
+    state.portal.status = 'signedOut';
+    state.portal.errorMessage = null;
+    renderApp();
+}
+
 function isDemoResetAvailable(session: PortalSession | null): boolean {
     return Boolean(session && session.client.name === portalConfig.defaultClientId);
 }
 
 function normalizePortalTitle(value: string): string {
     return value.replace(/client portal/gi, 'Private Dashboard').replace(/portal/gi, 'Dashboard');
+}
+
+function createInitialSignupForm(overrides?: Partial<AppState['portal']['signupForm']>): AppState['portal']['signupForm'] {
+    return {
+        companyName: '',
+        clientId: '',
+        fullName: '',
+        email: '',
+        phone: '',
+        password: '',
+        confirmPassword: '',
+        showPassword: false,
+        ...overrides
+    };
+}
+
+function isDemoAccessField(value: string | undefined): value is DemoAccessField {
+    return value === 'clientId' || value === 'email' || value === 'password';
+}
+
+function getDemoAccessValue(field: DemoAccessField): string {
+    switch (field) {
+        case 'clientId':
+            return portalConfig.defaultClientId;
+        case 'email':
+            return portalConfig.demoAccess.email;
+        case 'password':
+            return portalConfig.demoAccess.password;
+    }
+}
+
+async function copyTextToClipboard(value: string): Promise<boolean> {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+    } catch {
+        // Fall back to a temporary textarea when the Clipboard API is unavailable.
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = value;
+    textArea.setAttribute('readonly', 'true');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    textArea.style.pointerEvents = 'none';
+    document.body.append(textArea);
+    textArea.select();
+
+    let copied = false;
+
+    try {
+        copied = document.execCommand('copy');
+    } catch {
+        copied = false;
+    }
+
+    textArea.remove();
+    return copied;
 }
 
 function normalizeOptionalValue(value: FormDataEntryValue | null): string | undefined {

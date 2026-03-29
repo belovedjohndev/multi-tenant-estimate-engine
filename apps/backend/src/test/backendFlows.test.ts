@@ -156,6 +156,190 @@ describe('critical backend flows', { concurrency: false }, () => {
         assert.equal(meAfterLogoutResponse.status, 401);
     });
 
+    it('signs up a tenant, creates bootstrap records, and authenticates immediately', async () => {
+        const client = new TestHttpClient(baseUrl);
+
+        const signupResponse = await client.request<{
+            expiresAt: string;
+            user: { id: number; email: string; fullName: string };
+            client: { id: number; name: string };
+        }>('/auth/signup', {
+            method: 'POST',
+            json: {
+                clientId: 'acme-home',
+                companyName: 'Acme Home Services',
+                fullName: 'Jane Owner',
+                email: 'OWNER@ACME.COM',
+                password: 'change-me-123',
+                phone: '333-3333'
+            }
+        });
+
+        assert.equal(signupResponse.status, 201);
+        assert.equal(signupResponse.body.success, true);
+        assert.equal(signupResponse.body.data?.client.name, 'acme-home');
+        assert.equal(signupResponse.body.data?.user.email, 'owner@acme.com');
+        assert.match(signupResponse.setCookie ?? '', /HttpOnly/i);
+        assert.ok(client.cookieHeader);
+
+        const createdClient = await adminClient.query<{
+            id: number;
+            company_name: string;
+            phone: string | null;
+            notification_email: string | null;
+            active_config_version_id: number | null;
+            is_system_client: boolean;
+        }>(
+            `SELECT id, company_name, phone, notification_email, active_config_version_id, is_system_client
+             FROM clients
+             WHERE name = 'acme-home'`
+        );
+
+        assert.equal(createdClient.rows.length, 1);
+        assert.equal(createdClient.rows[0].company_name, 'Acme Home Services');
+        assert.equal(createdClient.rows[0].phone, '333-3333');
+        assert.equal(createdClient.rows[0].notification_email, 'owner@acme.com');
+        assert.notEqual(createdClient.rows[0].active_config_version_id, null);
+        assert.equal(createdClient.rows[0].is_system_client, false);
+
+        const createdUser = await adminClient.query<{
+            email: string;
+            full_name: string;
+            is_active: boolean;
+        }>(
+            `SELECT email, full_name, is_active
+             FROM client_users
+             WHERE client_id = $1`,
+            [createdClient.rows[0].id]
+        );
+
+        assert.equal(createdUser.rows.length, 1);
+        assert.equal(createdUser.rows[0].email, 'owner@acme.com');
+        assert.equal(createdUser.rows[0].full_name, 'Jane Owner');
+        assert.equal(createdUser.rows[0].is_active, true);
+
+        const createdBranding = await adminClient.query<{
+            primary_color: string | null;
+            secondary_color: string | null;
+            font_family: string | null;
+        }>(
+            `SELECT primary_color, secondary_color, font_family
+             FROM client_branding
+             WHERE client_id = $1`,
+            [createdClient.rows[0].id]
+        );
+
+        assert.equal(createdBranding.rows.length, 1);
+        assert.equal(createdBranding.rows[0].primary_color, '#1d4ed8');
+        assert.equal(createdBranding.rows[0].secondary_color, '#0f766e');
+        assert.equal(createdBranding.rows[0].font_family, 'Avenir Next');
+
+        const createdConfigVersion = await adminClient.query<{
+            version_number: number;
+            created_by_client_user_id: number | null;
+            estimator_config: {
+                basePrice: number;
+                multipliers: { size: number; complexity: number };
+                discounts: { bulk: number };
+            };
+        }>(
+            `SELECT version_number, created_by_client_user_id, estimator_config
+             FROM client_config_versions
+             WHERE client_id = $1`,
+            [createdClient.rows[0].id]
+        );
+
+        assert.equal(createdConfigVersion.rows.length, 1);
+        assert.equal(createdConfigVersion.rows[0].version_number, 1);
+        assert.deepEqual(createdConfigVersion.rows[0].estimator_config, {
+            basePrice: 100,
+            multipliers: {
+                size: 1.5,
+                complexity: 2
+            },
+            discounts: {
+                bulk: 0.1
+            }
+        });
+
+        const meResponse = await client.request<{
+            user: { email: string; fullName: string };
+            client: { name: string };
+        }>('/auth/me');
+        const settingsResponse = await client.request<{
+            clientId: string;
+            companyName: string;
+            currentConfigVersion: { versionNumber: number };
+        }>('/portal/client');
+        const leadsResponse = await client.request<{
+            summary: { totalLeadCount: number };
+            leads: Array<unknown>;
+        }>('/me/leads');
+
+        assert.equal(meResponse.status, 200);
+        assert.equal(meResponse.body.data?.client.name, 'acme-home');
+        assert.equal(meResponse.body.data?.user.email, 'owner@acme.com');
+        assert.equal(settingsResponse.status, 200);
+        assert.equal(settingsResponse.body.data?.clientId, 'acme-home');
+        assert.equal(settingsResponse.body.data?.companyName, 'Acme Home Services');
+        assert.equal(settingsResponse.body.data?.currentConfigVersion.versionNumber, 1);
+        assert.equal(leadsResponse.status, 200);
+        assert.equal(leadsResponse.body.data?.summary.totalLeadCount, 0);
+        assert.deepEqual(leadsResponse.body.data?.leads, []);
+    });
+
+    it('rejects duplicate client ids during signup', async () => {
+        const client = new TestHttpClient(baseUrl);
+
+        const firstSignupResponse = await client.request('/auth/signup', {
+            method: 'POST',
+            json: {
+                clientId: 'duplicate-client',
+                companyName: 'Duplicate Client',
+                fullName: 'Owner One',
+                email: 'owner1@example.com',
+                password: 'change-me-123'
+            }
+        });
+
+        assert.equal(firstSignupResponse.status, 201);
+
+        const secondClient = new TestHttpClient(baseUrl);
+        const secondSignupResponse = await secondClient.request('/auth/signup', {
+            method: 'POST',
+            json: {
+                clientId: 'duplicate-client',
+                companyName: 'Different Company',
+                fullName: 'Owner Two',
+                email: 'owner2@example.com',
+                password: 'change-me-123'
+            }
+        });
+
+        assert.equal(secondSignupResponse.status, 409);
+        assert.equal(secondSignupResponse.body.error?.code, 'client_id_unavailable');
+        assert.equal(secondClient.cookieHeader, null);
+    });
+
+    it('rejects reserved client ids during signup', async () => {
+        const client = new TestHttpClient(baseUrl);
+
+        const signupResponse = await client.request('/auth/signup', {
+            method: 'POST',
+            json: {
+                clientId: 'demo',
+                companyName: 'Reserved Demo',
+                fullName: 'Demo Owner',
+                email: 'reserved@example.com',
+                password: 'change-me-123'
+            }
+        });
+
+        assert.equal(signupResponse.status, 409);
+        assert.equal(signupResponse.body.error?.code, 'reserved_client_id');
+        assert.equal(client.cookieHeader, null);
+    });
+
     it('rejects protected portal access without authentication', async () => {
         const client = new TestHttpClient(baseUrl);
 
