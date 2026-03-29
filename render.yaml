@@ -2,7 +2,7 @@ services:
   - type: web
     name: estimate-engine-backend
     runtime: node
-    rootDir: backend
+    rootDir: apps/backend
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     envVars:
