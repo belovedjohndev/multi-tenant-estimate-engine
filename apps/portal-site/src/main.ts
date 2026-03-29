@@ -351,7 +351,7 @@ function renderSignupForm(): string {
                         name="companyName"
                         type="text"
                         value="${escapeHtml(companyName)}"
-                        placeholder="Acme Home Services"
+                        placeholder="ACME Home Services"
                         autocomplete="organization"
                     />
                 </label>
@@ -374,7 +374,7 @@ function renderSignupForm(): string {
                         name="fullName"
                         type="text"
                         value="${escapeHtml(fullName)}"
-                        placeholder="Jane Owner"
+                        placeholder="John D. Owner"
                         autocomplete="name"
                     />
                 </label>
