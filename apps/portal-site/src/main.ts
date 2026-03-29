@@ -63,11 +63,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
     timeStyle: 'short'
 });
 const portalTitle = normalizePortalTitle(portalConfig.portalTitle);
+const initialAuthMode = resolveInitialAuthMode(window.location.pathname);
 
 const state: AppState = {
     portal: {
         status: 'loading',
-        authMode: 'login',
+        authMode: initialAuthMode,
         session: null,
         leads: null,
         settings: null,
@@ -1117,6 +1118,7 @@ function setAuthMode(mode: AuthMode) {
     state.portal.authMode = mode;
     state.portal.status = 'signedOut';
     state.portal.errorMessage = null;
+    syncAuthModePath(mode);
     renderApp();
 }
 
@@ -1126,6 +1128,32 @@ function isDemoResetAvailable(session: PortalSession | null): boolean {
 
 function normalizePortalTitle(value: string): string {
     return value.replace(/client portal/gi, 'Private Dashboard').replace(/portal/gi, 'Dashboard');
+}
+
+function resolveInitialAuthMode(pathname: string): AuthMode {
+    const normalizedPath = normalizePortalPath(pathname);
+
+    if (normalizedPath === '/signup') {
+        return 'signup';
+    }
+
+    return 'login';
+}
+
+function syncAuthModePath(mode: AuthMode): void {
+    const nextPath = mode === 'signup' ? '/signup' : '/login';
+
+    if (normalizePortalPath(window.location.pathname) === nextPath) {
+        return;
+    }
+
+    window.history.replaceState(window.history.state, '', nextPath);
+}
+
+function normalizePortalPath(pathname: string): string {
+    const normalizedPath = pathname.trim().replace(/\/+$/, '');
+
+    return normalizedPath || '/';
 }
 
 function createInitialSignupForm(overrides?: Partial<AppState['portal']['signupForm']>): AppState['portal']['signupForm'] {
