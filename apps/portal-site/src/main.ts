@@ -1102,7 +1102,7 @@ function setAuthMode(mode: AuthMode) {
     if (mode === 'signup') {
         state.portal.signupForm = {
             ...state.portal.signupForm,
-            clientId: state.portal.signupForm.clientId || state.portal.loginForm.clientId,
+            clientId: getSignupPrefillClientId(state.portal.signupForm.clientId || state.portal.loginForm.clientId),
             email: state.portal.signupForm.email || state.portal.loginForm.email
         };
     } else {
@@ -1129,7 +1129,7 @@ function normalizePortalTitle(value: string): string {
 }
 
 function createInitialSignupForm(overrides?: Partial<AppState['portal']['signupForm']>): AppState['portal']['signupForm'] {
-    return {
+    const form: AppState['portal']['signupForm'] = {
         companyName: '',
         clientId: '',
         fullName: '',
@@ -1137,9 +1137,33 @@ function createInitialSignupForm(overrides?: Partial<AppState['portal']['signupF
         phone: '',
         password: '',
         confirmPassword: '',
-        showPassword: false,
-        ...overrides
+        showPassword: false
     };
+
+    if (overrides) {
+        Object.assign(form, overrides);
+    }
+
+    form.clientId = getSignupPrefillClientId(overrides?.clientId);
+    form.password = '';
+    form.confirmPassword = '';
+    form.showPassword = false;
+
+    return form;
+}
+
+function getSignupPrefillClientId(value: string | undefined): string {
+    if (!value) {
+        return '';
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (!normalizedValue || normalizedValue === portalConfig.defaultClientId.trim().toLowerCase()) {
+        return '';
+    }
+
+    return value;
 }
 
 function isDemoAccessField(value: string | undefined): value is DemoAccessField {

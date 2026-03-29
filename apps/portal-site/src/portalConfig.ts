@@ -1,4 +1,4 @@
-const apiBaseUrl = readRequiredEnv('VITE_API_BASE_URL');
+const apiBaseUrl = normalizeApiBaseUrl(readRequiredEnv('VITE_API_BASE_URL'));
 
 export const portalConfig = {
     apiBaseUrl,
@@ -18,6 +18,10 @@ function readRequiredEnv(key: 'VITE_API_BASE_URL'): string {
     }
 
     return value;
+}
+
+function normalizeApiBaseUrl(value: string): string {
+    return value.replace(/\/+$/, '');
 }
 
 function readOptionalEnv(

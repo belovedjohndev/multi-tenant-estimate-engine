@@ -22,6 +22,12 @@ interface ApiFailureEnvelope {
 
 type ApiEnvelope<T> = ApiSuccessEnvelope<T> | ApiFailureEnvelope;
 
+interface PortalApiRequestInit {
+    method: 'GET' | 'POST' | 'PUT';
+    body?: string;
+    headers?: Record<string, string>;
+}
+
 export async function loginPortal(input: {
     clientId: string;
     email: string;
@@ -93,23 +99,33 @@ export async function resetPortalDemo(): Promise<{
 
 async function requestPortalApi<T>(
     path: string,
-    init: {
-        method: 'GET' | 'POST' | 'PUT';
-        body?: string;
-        headers?: Record<string, string>;
-    }
+    init: PortalApiRequestInit
 ): Promise<T> {
-    const response = await fetch(`${portalConfig.apiBaseUrl}${path}`, {
-        method: init.method,
-        body: init.body,
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...init.headers
-        }
-    });
+    let response: Response;
 
-    const payload = (await response.json()) as ApiEnvelope<T>;
+    try {
+        response = await fetch(`${portalConfig.apiBaseUrl}${path}`, {
+            method: init.method,
+            body: init.body,
+            cache: 'no-store',
+            credentials: 'include',
+            headers: buildPortalHeaders(init)
+        });
+    } catch {
+        throw createPortalApiError(
+            'network_error',
+            'Unable to reach the dashboard API. Please try again.',
+            0
+        );
+    }
+
+    const payload = (await readApiEnvelope<T>(response)) ?? {
+        success: false as const,
+        error: {
+            code: 'invalid_api_response',
+            message: 'Unexpected API response'
+        }
+    };
 
     if (!response.ok || !payload.success) {
         const errorPayload = (!payload.success ? payload.error : null) ?? {
@@ -117,12 +133,43 @@ async function requestPortalApi<T>(
             message: 'Unexpected API response'
         };
 
-        const error = new Error(errorPayload.message) as Error & ApiErrorResponse;
-        error.code = errorPayload.code;
-        error.message = errorPayload.message;
-        error.statusCode = response.status;
-        throw error;
+        throw createPortalApiError(errorPayload.code, errorPayload.message, response.status);
     }
 
     return payload.data;
+}
+
+function buildPortalHeaders(init: PortalApiRequestInit): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...init.headers
+    };
+
+    if (init.body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
+}
+
+async function readApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T> | null> {
+    const responseText = await response.text();
+
+    if (!responseText) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(responseText) as ApiEnvelope<T>;
+    } catch {
+        return null;
+    }
+}
+
+function createPortalApiError(code: string, message: string, statusCode: number): Error & ApiErrorResponse {
+    const error = new Error(message) as Error & ApiErrorResponse;
+    error.code = code;
+    error.message = message;
+    error.statusCode = statusCode;
+    return error;
 }
