@@ -194,7 +194,7 @@ function buildShellMarkup(pathname: SitePath): string {
                         <a class="site-nav__link${pathname === '/privacy' ? ' is-active' : ''}" href="/privacy">Privacy</a>
                         <a class="site-nav__link${pathname === '/refund' ? ' is-active' : ''}" href="/refund">Refund</a>
                     </nav>
-                    <a class="portal-link" href="${escapeHtmlAttribute(portalUrl)}">Open Portal</a>
+                    <a class="https://portal.belovedjohndev.com/" href="${escapeHtmlAttribute(portalUrl)}">Open Portal</a>
                 </div>
             </header>
 
