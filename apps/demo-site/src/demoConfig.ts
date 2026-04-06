@@ -1,4 +1,13 @@
-import { WidgetRuntimeConfigInput } from '../../widget/src';
+interface WidgetRuntimeConfigInput {
+    apiBaseUrl: string;
+    clientId: string;
+    launcherLabel: string;
+    modalTitle: string;
+    companyName: string;
+    logoUrl: string;
+    primaryColor: string;
+    secondaryColor: string;
+}
 
 const apiBaseUrl = readRequiredEnv('VITE_API_BASE_URL');
 

@@ -1,5 +1,3 @@
-import { mountWidget, MountedWidget } from '../../widget/src';
-import { demoConfig } from './demoConfig';
 import './styles.css';
 
 type SitePath = '/' | '/pricing' | '/terms' | '/privacy' | '/refund';
@@ -21,8 +19,6 @@ if (!(appRoot instanceof HTMLElement)) {
 }
 
 const rootElement: HTMLElement = appRoot;
-let mountedWidget: MountedWidget | null = null;
-let currentWidgetHost: HTMLElement | null = null;
 const supportEmail = 'support@belovedjohndev.com';
 const helloEmail = 'hello@belovedjohndev.com';
 const billingEmail = 'billing@belovedjohndev.com';
@@ -183,13 +179,6 @@ function renderApp() {
 
     document.title = currentPath === '/' ? 'Estimate Engine Demo' : `Estimate Engine ${compliancePages[currentPath].title}`;
     rootElement.innerHTML = buildShellMarkup(currentPath);
-
-    if (currentPath === '/') {
-        ensureWidgetMounted();
-        return;
-    }
-
-    destroyWidget();
 }
 
 function buildShellMarkup(pathname: SitePath): string {
@@ -266,8 +255,17 @@ function buildHomeMarkup(): string {
                     This is the live estimate flow a website visitor would use to review pricing and send a request.
                 </p>
                 <div class="widget-zone">
-                    <div class="widget-preview-shell">
-                        <div id="widget-root"></div>
+                    <div class="widget-preview-shell widget-preview-shell--placeholder">
+                        <p class="card-label">Public Widget Preview</p>
+                        <h3>Interactive widget preview is being finalized.</h3>
+                        <p class="surface-copy">
+                            Public pricing, privacy, refund, and access information remain available while the hosted widget preview is being prepared in this deployment.
+                        </p>
+                        <div class="hero-pill-row" aria-label="Widget preview status">
+                            <span class="hero-pill">Public legal pages live</span>
+                            <span class="hero-pill">Portal access available</span>
+                            <span class="hero-pill">Hosted widget preview pending</span>
+                        </div>
                     </div>
                 </div>
             </article>
@@ -310,29 +308,6 @@ function buildHomeMarkup(): string {
             </article>
         </section>
     `;
-}
-
-function ensureWidgetMounted() {
-    const widgetHost = document.getElementById('widget-root');
-
-    if (!(widgetHost instanceof HTMLElement)) {
-        destroyWidget();
-        return;
-    }
-
-    if (currentWidgetHost === widgetHost) {
-        return;
-    }
-
-    mountedWidget?.destroy();
-    mountedWidget = mountWidget(widgetHost, demoConfig);
-    currentWidgetHost = widgetHost;
-}
-
-function destroyWidget() {
-    mountedWidget?.destroy();
-    mountedWidget = null;
-    currentWidgetHost = null;
 }
 
 function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {

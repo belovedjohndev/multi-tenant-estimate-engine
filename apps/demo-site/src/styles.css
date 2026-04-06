@@ -247,6 +247,27 @@ a {
     align-content: start;
 }
 
+.widget-preview-shell--placeholder {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1.25rem;
+    min-height: 18rem;
+    align-content: center;
+    border-radius: 1.5rem;
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92)),
+        rgba(248, 250, 252, 0.82);
+}
+
+.widget-preview-shell--placeholder h3 {
+    margin: 0;
+    color: #10233d;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-size: clamp(1.5rem, 2vw, 2rem);
+}
+
 .surface-card--guide {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.94)),
