@@ -62,6 +62,14 @@ a {
     margin-bottom: 1.5rem;
 }
 
+.site-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.9rem;
+    align-items: center;
+}
+
 .brand-mark {
     text-decoration: none;
     font-weight: 800;
@@ -78,21 +86,29 @@ a {
 }
 
 .site-nav__link,
-.footer-nav a {
+.footer-nav a,
+.portal-link {
     text-decoration: none;
     padding: 0.65rem 0.85rem;
     border-radius: 999px;
-    color: rgba(16, 35, 61, 0.72);
     transition:
         background 160ms ease,
         color 160ms ease,
-        transform 160ms ease;
+        transform 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.site-nav__link,
+.footer-nav a {
+    color: rgba(16, 35, 61, 0.72);
 }
 
 .site-nav__link:hover,
 .site-nav__link:focus-visible,
 .footer-nav a:hover,
 .footer-nav a:focus-visible,
+.portal-link:hover,
+.portal-link:focus-visible,
 .cta-link:hover,
 .cta-link:focus-visible {
     transform: translateY(-1px);
@@ -110,6 +126,19 @@ a {
     background: linear-gradient(135deg, rgba(251, 146, 60, 0.16), rgba(14, 165, 233, 0.14));
     color: #10233d;
     font-weight: 700;
+}
+
+.portal-link {
+    padding-inline: 1.15rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(135deg, #10233d, #2563eb);
+    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.18);
+}
+
+.portal-link:hover,
+.portal-link:focus-visible {
+    box-shadow: 0 20px 36px rgba(37, 99, 235, 0.24);
 }
 
 .hero,
@@ -388,6 +417,14 @@ a {
     .surface-header {
         display: grid;
         justify-content: stretch;
+    }
+
+    .site-header__actions {
+        justify-content: stretch;
+    }
+
+    .portal-link {
+        text-align: center;
     }
 
     .widget-zone {
