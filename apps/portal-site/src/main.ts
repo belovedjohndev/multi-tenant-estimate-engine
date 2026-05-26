@@ -168,16 +168,10 @@ function renderApp() {
             <section class="portal-hero">
                 <div class="portal-hero__copy">
                     <p class="eyebrow">Private Dashboard</p>
-                    <h1>${escapeHtml(portalTitle)}</h1>
+                    <h1>Sign in to Estimate Engine</h1>
                     <p class="hero-copy">
-                        Secure sign-in gives your team one place to review estimate requests, update pricing settings,
-                        and manage company details while the public estimate experience stays separate.
+                        Access estimate requests, company settings, and estimator configuration for your account.
                     </p>
-                </div>
-                <div class="portal-hero__meta">
-                    <span class="hero-pill">Secure dashboard</span>
-                    <span class="hero-pill">Company settings</span>
-                    <span class="hero-pill">Secure sign-in</span>
                 </div>
             </section>
             ${renderPortalSurface()}
@@ -203,7 +197,7 @@ function renderPortalSurface(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">${isSignupMode ? 'Create Account' : 'Secure Sign-In'}</p>
-                        <h2>${isSignupMode ? 'Create your company account' : 'Access the private dashboard'}</h2>
+                        <h2>${isSignupMode ? 'Create your company account' : 'Sign in to Estimate Engine'}</h2>
                     </div>
                     <p class="surface-meta surface-meta--compact">${isSignupMode ? 'New account' : 'Private access'}</p>
                 </div>
@@ -227,21 +221,21 @@ function renderPortalSurface(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">What You Can Manage</p>
-                        <h2>Everything for your company stays here</h2>
+                        <h2>Manage your estimate engine from one secure workspace</h2>
                     </div>
                 </div>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Requests</h3>
-                        <p>Review new estimate requests, totals, and recent activity in one private place.</p>
+                        <h3>Estimate requests</h3>
+                        <p>Review new customer requests and estimate snapshots.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Company details</h3>
-                        <p>Keep your company name, notification email, phone number, and logo up to date.</p>
+                        <h3>Company profile</h3>
+                        <p>Update business details, contact information, and branding.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Pricing settings</h3>
-                        <p>Your pricing settings and saved changes stay linked to your company account.</p>
+                        <h3>Estimator settings</h3>
+                        <p>Manage pricing inputs and saved configuration versions.</p>
                     </div>
                 </div>
             </div>
@@ -320,14 +314,14 @@ function renderLoginForm(): string {
             <div class="demo-access-card__header">
                 <div>
                     <p class="card-label">Demo Access</p>
-                    <h3>Testing credentials</h3>
+                    <h3>Demo credentials</h3>
                 </div>
                 <button class="secondary-button demo-access-card__action" type="button" id="portal-fill-demo-button">
-                    Use Demo Access
+                    Autofill
                 </button>
             </div>
             <p class="surface-copy demo-access-card__copy">
-                Autofill the shared demo account or copy an individual value below for testing.
+                Use the shared demo account for product walkthroughs.
             </p>
             <div class="demo-access-list">
                 ${renderDemoAccessItem('Company ID', portalConfig.defaultClientId, 'clientId')}

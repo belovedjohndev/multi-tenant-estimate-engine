@@ -292,23 +292,22 @@ function buildHomeMarkup(): string {
         <section class="hero">
             <div class="hero-copy-block">
                 <p class="eyebrow">Estimate Engine Demo</p>
-                <h1>See the website estimate experience in action.</h1>
+                <h1>See how customers request an estimate from your website.</h1>
                 <p class="hero-copy">
-                    This page shows the live estimate experience customers see on your website, using the same pricing
-                    and request flow your business would use in production.
+                    Try the public estimate flow your customers would use, then see how submitted requests appear in the private portal.
                 </p>
-                <div class="hero-pill-row">
-                    <span class="hero-pill">Live website estimate</span>
-                    <span class="hero-pill">Customer request flow</span>
-                    <span class="hero-pill">Private dashboard available</span>
-                </div>
+                <ol class="workflow-list" aria-label="Estimate workflow">
+                    <li>Customer enters project details.</li>
+                    <li>Estimate Engine calculates the price from saved settings.</li>
+                    <li>Contact details create a lead for the private portal.</li>
+                </ol>
             </div>
             <aside class="hero-note">
-                <p class="card-label">How It Works</p>
-                <h2>Public estimate experience, brand-ready setup, private dashboard.</h2>
+                <p class="card-label">Product Flow</p>
+                <h2>Public estimate form, private request management.</h2>
                 <p class="surface-copy">
-                    Show the public estimate experience under Estimate Engine branding, preview how it can match a
-                    customer's brand, and keep company management in a private dashboard.
+                    The demo site represents the customer-facing experience. The portal is reserved for signed-in business users
+                    who manage requests, profile details, and estimator configuration.
                 </p>
             </aside>
         </section>
@@ -318,12 +317,12 @@ function buildHomeMarkup(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">Estimate Experience</p>
-                        <h2>See the customer journey</h2>
+                        <h2>Customer-facing estimate walkthrough</h2>
                     </div>
-                    <p class="surface-meta">Live example</p>
+                    <p class="surface-meta">Live API flow</p>
                 </div>
                 <p class="surface-copy">
-                    This is the live estimate flow a website visitor would use to review pricing and send a request.
+                    This form calls the same public estimate and lead endpoints used by the embeddable widget.
                 </p>
                 <div class="widget-zone">
                     <div class="widget-preview-shell">
@@ -371,18 +370,13 @@ function buildHomeMarkup(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">Private Dashboard</p>
-                        <h2>Manage requests and company settings</h2>
+                        <h2>Submitted requests move into the portal</h2>
                     </div>
                 </div>
                 <p class="surface-copy">
-                    The screenshot shows the private side of the product: customers use the public estimate experience,
-                    while your team signs in to review requests and update company settings.
+                    After a visitor submits contact details, the request is stored for the tenant and appears in the
+                    authenticated dashboard for review.
                 </p>
-                <div class="portal-pill-row" aria-label="Portal context">
-                    <span class="hero-pill">Public website view</span>
-                    <span class="hero-pill">Private dashboard</span>
-                    <span class="hero-pill">Brand-ready setup</span>
-                </div>
                 <figure class="portal-shot">
                     <img
                         src="/portal/portal-belovedjohndev.png"
@@ -391,16 +385,16 @@ function buildHomeMarkup(): string {
                 </figure>
                 <div class="feature-list">
                     <div class="feature-item">
-                        <h3>Website experience</h3>
-                        <p>Customers start here to review pricing and request an estimate from your business.</p>
+                        <h3>Public estimate flow</h3>
+                        <p>Visitors calculate a price and decide whether to send their contact details.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Company dashboard</h3>
-                        <p>Review customer requests, update pricing settings, and manage company details in one place.</p>
+                        <h3>Tenant-scoped leads</h3>
+                        <p>Submitted requests stay tied to the configured business account.</p>
                     </div>
                     <div class="feature-item">
-                        <h3>Brand-ready setup</h3>
-                        <p>The estimate experience can be styled to match a customer's brand while keeping the same product workflow.</p>
+                        <h3>Configurable estimator</h3>
+                        <p>Business users manage pricing inputs and saved configuration versions from the portal.</p>
                     </div>
                 </div>
             </article>
