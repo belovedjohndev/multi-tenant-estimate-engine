@@ -9,10 +9,8 @@ interface WidgetRuntimeConfigInput {
     secondaryColor: string;
 }
 
-const apiBaseUrl = readRequiredEnv('VITE_API_BASE_URL');
-
 export const demoConfig: WidgetRuntimeConfigInput = {
-    apiBaseUrl,
+    apiBaseUrl: readOptionalEnv('VITE_API_BASE_URL') || '',
     clientId: readOptionalEnv('VITE_CLIENT_ID') || 'demo',
     launcherLabel: readOptionalEnv('VITE_LAUNCHER_LABEL') || 'Try The Live Widget',
     modalTitle: readOptionalEnv('VITE_MODAL_TITLE') || 'Estimate Engine Demo',
@@ -21,16 +19,6 @@ export const demoConfig: WidgetRuntimeConfigInput = {
     primaryColor: readOptionalEnv('VITE_PRIMARY_COLOR') || '#0f3554',
     secondaryColor: readOptionalEnv('VITE_SECONDARY_COLOR') || '#2ea8ff'
 };
-
-function readRequiredEnv(key: 'VITE_API_BASE_URL'): string {
-    const value = readOptionalEnv(key);
-
-    if (!value) {
-        throw new Error(`${key} must be set before starting the demo-site`);
-    }
-
-    return value;
-}
 
 function readOptionalEnv(
     key:

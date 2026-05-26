@@ -1,6 +1,8 @@
 import './styles.css';
+import { demoConfig } from './demoConfig';
 
 type SitePath = '/' | '/pricing' | '/terms' | '/privacy' | '/refund';
+type EstimateComplexity = 'low' | 'medium' | 'high';
 
 interface CompliancePage {
     title: string;
@@ -10,6 +12,68 @@ interface CompliancePage {
         paragraphs?: string[];
         bullets?: string[];
     }>;
+}
+
+interface ApiSuccessEnvelope<T> {
+    success: true;
+    data: T;
+}
+
+interface ApiErrorEnvelope {
+    success: false;
+    error: {
+        code: string;
+        message: string;
+    };
+}
+
+type ApiEnvelope<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
+
+interface ClientConfigData {
+    branding: {
+        logoUrl?: string;
+        primaryColor?: string;
+        secondaryColor?: string;
+        fontFamily?: string;
+    } | null;
+    config: {
+        id: number;
+        versionNumber: number;
+        estimatorConfig: {
+            basePrice: number;
+            multipliers: {
+                size: number;
+                complexity: number;
+            };
+            discounts: {
+                bulk: number;
+            };
+        };
+    };
+}
+
+interface EstimateInput {
+    size: number;
+    complexity: EstimateComplexity;
+    bulk: boolean;
+}
+
+interface EstimateResult {
+    total: number;
+    breakdown: {
+        basePrice: number;
+        sizeMultiplier: number;
+        complexityMultiplier: number;
+        discount: number;
+    };
+    configVersion: {
+        id: number;
+        versionNumber: number;
+    };
+}
+
+interface LeadResponse {
+    id: number;
 }
 
 const appRoot = document.getElementById('app-root');
@@ -23,6 +87,9 @@ const supportEmail = 'support@belovedjohndev.com';
 const helloEmail = 'hello@belovedjohndev.com';
 const billingEmail = 'billing@belovedjohndev.com';
 const portalUrl = resolvePortalUrl();
+let clientConfigPromise: Promise<ClientConfigData> | null = null;
+let activeEstimateInput: EstimateInput | null = null;
+let activeEstimateResult: EstimateResult | null = null;
 
 const compliancePages: Record<Exclude<SitePath, '/'>, CompliancePage> = {
     '/pricing': {
@@ -179,6 +246,10 @@ function renderApp() {
 
     document.title = currentPath === '/' ? 'Estimate Engine Demo' : `Estimate Engine ${compliancePages[currentPath].title}`;
     rootElement.innerHTML = buildShellMarkup(currentPath);
+
+    if (currentPath === '/') {
+        initializeEstimateDemo();
+    }
 }
 
 function buildShellMarkup(pathname: SitePath): string {
@@ -255,17 +326,44 @@ function buildHomeMarkup(): string {
                     This is the live estimate flow a website visitor would use to review pricing and send a request.
                 </p>
                 <div class="widget-zone">
-                    <div class="widget-preview-shell widget-preview-shell--placeholder">
-                        <p class="card-label">Public Widget Preview</p>
-                        <h3>Interactive widget preview is being finalized.</h3>
-                        <p class="surface-copy">
-                            Public pricing, privacy, refund, and access information remain available while the hosted widget preview is being prepared in this deployment.
-                        </p>
-                        <div class="hero-pill-row" aria-label="Widget preview status">
-                            <span class="hero-pill">Public legal pages live</span>
-                            <span class="hero-pill">Portal access available</span>
-                            <span class="hero-pill">Hosted widget preview pending</span>
-                        </div>
+                    <div class="widget-preview-shell">
+                        <section class="estimate-demo" aria-labelledby="estimate-demo-title">
+                            <div class="estimate-demo__intro">
+                                <p class="card-label">Public Estimate Flow</p>
+                                <h3 id="estimate-demo-title">Try the live estimate demo</h3>
+                                <p class="surface-copy">
+                                    Use sample project details to calculate an estimate with the same public API flow used by the hosted widget.
+                                </p>
+                                <p class="estimate-demo__config" id="estimate-config-status">Loading demo pricing...</p>
+                            </div>
+
+                            <form class="estimate-form" id="estimate-demo-form">
+                                <label class="estimate-field">
+                                    <span>Project size</span>
+                                    <input type="number" name="size" min="1" step="1" value="1200" required />
+                                </label>
+
+                                <label class="estimate-field">
+                                    <span>Complexity</span>
+                                    <select name="complexity" required>
+                                        <option value="low">Low</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </label>
+
+                                <label class="estimate-check">
+                                    <input type="checkbox" name="bulk" checked />
+                                    <span>Apply bulk discount</span>
+                                </label>
+
+                                <button class="cta-link estimate-submit" type="submit">Calculate Estimate</button>
+                                <p class="estimate-form__status" id="estimate-demo-status" role="status" aria-live="polite"></p>
+                            </form>
+
+                            <div class="estimate-result" id="estimate-demo-result" aria-live="polite"></div>
+                            <div class="lead-capture" id="estimate-demo-lead"></div>
+                        </section>
                     </div>
                 </div>
             </article>
@@ -308,6 +406,308 @@ function buildHomeMarkup(): string {
             </article>
         </section>
     `;
+}
+
+function initializeEstimateDemo(): void {
+    const form = document.getElementById('estimate-demo-form');
+    const status = document.getElementById('estimate-demo-status');
+    const resultRegion = document.getElementById('estimate-demo-result');
+    const leadRegion = document.getElementById('estimate-demo-lead');
+    const configStatus = document.getElementById('estimate-config-status');
+
+    if (
+        !(form instanceof HTMLFormElement) ||
+        !(status instanceof HTMLElement) ||
+        !(resultRegion instanceof HTMLElement) ||
+        !(leadRegion instanceof HTMLElement) ||
+        !(configStatus instanceof HTMLElement)
+    ) {
+        return;
+    }
+
+    void ensureClientConfig()
+        .then((config) => {
+            configStatus.textContent = `Demo pricing loaded: base ${formatCurrency(config.config.estimatorConfig.basePrice)}.`;
+        })
+        .catch((error) => {
+            configStatus.textContent = getErrorMessage(error, 'Demo pricing could not be loaded.');
+        });
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void handleEstimateSubmit(form, status, resultRegion, leadRegion);
+    });
+}
+
+async function handleEstimateSubmit(
+    form: HTMLFormElement,
+    status: HTMLElement,
+    resultRegion: HTMLElement,
+    leadRegion: HTMLElement
+): Promise<void> {
+    status.textContent = '';
+    resultRegion.innerHTML = '';
+    leadRegion.innerHTML = '';
+    setFormDisabled(form, true);
+
+    try {
+        const input = parseEstimateDemoInput(new FormData(form));
+        status.textContent = 'Calculating estimate...';
+        await ensureClientConfig();
+        const result = await requestEstimate(input);
+
+        activeEstimateInput = input;
+        activeEstimateResult = result;
+        status.textContent = '';
+        resultRegion.innerHTML = buildEstimateResultMarkup(input, result);
+        leadRegion.innerHTML = buildLeadCaptureMarkup(result);
+        initializeLeadCaptureForm(leadRegion);
+    } catch (error) {
+        status.textContent = getErrorMessage(error, 'Estimate could not be calculated.');
+    } finally {
+        setFormDisabled(form, false);
+    }
+}
+
+function initializeLeadCaptureForm(leadRegion: HTMLElement): void {
+    const form = leadRegion.querySelector('#estimate-lead-form');
+    const status = leadRegion.querySelector('#estimate-lead-status');
+
+    if (!(form instanceof HTMLFormElement) || !(status instanceof HTMLElement)) {
+        return;
+    }
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void handleLeadSubmit(form, status);
+    });
+}
+
+async function handleLeadSubmit(form: HTMLFormElement, status: HTMLElement): Promise<void> {
+    if (!activeEstimateInput || !activeEstimateResult) {
+        status.textContent = 'Calculate an estimate before sending contact details.';
+        return;
+    }
+
+    status.textContent = '';
+    setFormDisabled(form, true);
+
+    try {
+        const formData = new FormData(form);
+        const payload = {
+            name: parseOptionalString(formData.get('name')),
+            email: parseRequiredEmail(formData.get('email')),
+            phone: parseOptionalString(formData.get('phone')),
+            estimateInput: activeEstimateInput,
+            estimateData: activeEstimateResult,
+            configVersionId: activeEstimateResult.configVersion.id
+        };
+        const response = await requestApi<LeadResponse>(`${getDemoApiBaseUrl()}/leads`, {
+            method: 'POST',
+            body: JSON.stringify({
+                clientId: demoConfig.clientId,
+                ...payload
+            })
+        });
+
+        form.innerHTML = `
+            <div class="estimate-success">
+                <p class="card-label">Request sent</p>
+                <h4>Lead #${response.id} was created.</h4>
+                <p class="surface-copy">The request used the public lead endpoint and is available to the tenant in the portal.</p>
+                <a class="cta-link" href="${escapeHtmlAttribute(portalUrl)}">Open Portal</a>
+            </div>
+        `;
+    } catch (error) {
+        status.textContent = getErrorMessage(error, 'Contact details could not be submitted.');
+        setFormDisabled(form, false);
+    }
+}
+
+function buildEstimateResultMarkup(input: EstimateInput, result: EstimateResult): string {
+    return `
+        <article class="estimate-result-card">
+            <div>
+                <p class="card-label">Estimate Result</p>
+                <h4>${formatCurrency(result.total)}</h4>
+                <p class="surface-copy">
+                    ${input.size.toLocaleString()} sq ft, ${input.complexity} complexity, ${
+                        input.bulk ? 'bulk discount applied' : 'standard pricing'
+                    }.
+                </p>
+            </div>
+            <dl class="estimate-breakdown">
+                <div>
+                    <dt>Base price</dt>
+                    <dd>${formatCurrency(result.breakdown.basePrice)}</dd>
+                </div>
+                <div>
+                    <dt>Size multiplier</dt>
+                    <dd>${result.breakdown.sizeMultiplier.toFixed(2)}x</dd>
+                </div>
+                <div>
+                    <dt>Complexity multiplier</dt>
+                    <dd>${result.breakdown.complexityMultiplier.toFixed(2)}x</dd>
+                </div>
+                <div>
+                    <dt>Discount</dt>
+                    <dd>${(result.breakdown.discount * 100).toFixed(0)}%</dd>
+                </div>
+            </dl>
+            <p class="estimate-version">Config version v${result.configVersion.versionNumber}</p>
+        </article>
+    `;
+}
+
+function buildLeadCaptureMarkup(result: EstimateResult): string {
+    return `
+        <form class="lead-form" id="estimate-lead-form">
+            <div>
+                <p class="card-label">Optional Lead Capture</p>
+                <h4>Send this estimate request</h4>
+                <p class="surface-copy">
+                    Add contact details only if you want to create a public demo lead for ${formatCurrency(result.total)}.
+                </p>
+            </div>
+            <label class="estimate-field">
+                <span>Name</span>
+                <input type="text" name="name" autocomplete="name" placeholder="Beloved John" />
+            </label>
+            <label class="estimate-field">
+                <span>Email</span>
+                <input type="email" name="email" autocomplete="email" placeholder="belovedjohn@example.com" required />
+            </label>
+            <label class="estimate-field">
+                <span>Phone</span>
+                <input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 123 4567" />
+            </label>
+            <button class="cta-link estimate-submit" type="submit">Send Request</button>
+            <a class="estimate-portal-cta" href="${escapeHtmlAttribute(portalUrl)}">Portal login or signup</a>
+            <p class="estimate-form__status" id="estimate-lead-status" role="status" aria-live="polite"></p>
+        </form>
+    `;
+}
+
+async function ensureClientConfig(): Promise<ClientConfigData> {
+    if (!clientConfigPromise) {
+        const query = new URLSearchParams({ clientId: demoConfig.clientId });
+        clientConfigPromise = requestApi<ClientConfigData>(`${getDemoApiBaseUrl()}/client-config?${query.toString()}`);
+    }
+
+    return clientConfigPromise;
+}
+
+async function requestEstimate(input: EstimateInput): Promise<EstimateResult> {
+    return requestApi<EstimateResult>(`${getDemoApiBaseUrl()}/estimate`, {
+        method: 'POST',
+        body: JSON.stringify({
+            clientId: demoConfig.clientId,
+            input
+        })
+    });
+}
+
+function getDemoApiBaseUrl(): string {
+    if (!demoConfig.apiBaseUrl) {
+        throw new Error('VITE_API_BASE_URL must be configured for the live estimate demo.');
+    }
+
+    return demoConfig.apiBaseUrl;
+}
+
+async function requestApi<T>(url: string, init?: RequestInit): Promise<T> {
+    const response = await fetch(url, {
+        ...init,
+        headers: {
+            Accept: 'application/json',
+            ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(init?.headers ?? {})
+        }
+    });
+    const payload = (await response.json()) as ApiEnvelope<T>;
+
+    if (response.ok && payload.success) {
+        return payload.data;
+    }
+
+    if (!payload.success) {
+        throw new Error(payload.error.message);
+    }
+
+    throw new Error('Unexpected API response');
+}
+
+function parseEstimateDemoInput(formData: FormData): EstimateInput {
+    return {
+        size: parsePositiveNumber(formData.get('size'), 'Project size'),
+        complexity: parseEstimateComplexity(formData.get('complexity')),
+        bulk: formData.get('bulk') === 'on'
+    };
+}
+
+function parseEstimateComplexity(value: FormDataEntryValue | null): EstimateComplexity {
+    if (value === 'low' || value === 'medium' || value === 'high') {
+        return value;
+    }
+
+    throw new Error('Complexity must be low, medium, or high.');
+}
+
+function parsePositiveNumber(value: FormDataEntryValue | null, fieldName: string): number {
+    if (typeof value !== 'string') {
+        throw new Error(`${fieldName} is required.`);
+    }
+
+    const parsedValue = Number(value);
+
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+        throw new Error(`${fieldName} must be a positive number.`);
+    }
+
+    return parsedValue;
+}
+
+function parseRequiredEmail(value: FormDataEntryValue | null): string {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new Error('Email is required.');
+    }
+
+    const email = value.trim().toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('Email must be a valid email address.');
+    }
+
+    return email;
+}
+
+function parseOptionalString(value: FormDataEntryValue | null): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmedValue = value.trim();
+
+    return trimmedValue || undefined;
+}
+
+function setFormDisabled(form: HTMLFormElement, disabled: boolean): void {
+    Array.from(form.elements).forEach((element) => {
+        if ('disabled' in element) {
+            element.disabled = disabled;
+        }
+    });
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
+function formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(value);
 }
 
 function buildCompliancePageMarkup(pathname: Exclude<SitePath, '/'>): string {
