@@ -1,5 +1,6 @@
 import { portalConfig } from './portalConfig';
 import {
+    fetchPortalBillingSummary,
     fetchPortalClientSettings,
     fetchPortalLeads,
     fetchPortalSession,
@@ -7,14 +8,23 @@ import {
     logoutPortal,
     resetPortalDemo,
     signupPortal,
+    startPortalCheckout,
     updatePortalClientSettings
 } from './portalApi';
-import { PortalClientSettings, PortalLeadsResponse, PortalSession } from './portalTypes';
+import {
+    PortalBillingPlanCode,
+    PortalBillingSummary,
+    PortalClientSettings,
+    PortalLeadsResponse,
+    PortalSession
+} from './portalTypes';
 import './styles.css';
 
 type PortalStatus = 'signedOut' | 'loading' | 'signingIn' | 'signingUp' | 'ready' | 'error';
 type AuthMode = 'login' | 'signup';
 type DemoAccessField = 'clientId' | 'email' | 'password';
+type PortalBillingStatus = 'idle' | 'loading' | 'ready' | 'error';
+type PortalCheckoutStatus = 'idle' | 'submitting' | 'redirecting' | 'error';
 
 interface AppState {
     portal: {
@@ -23,6 +33,14 @@ interface AppState {
         session: PortalSession | null;
         leads: PortalLeadsResponse | null;
         settings: PortalClientSettings | null;
+        billing: {
+            status: PortalBillingStatus;
+            summary: PortalBillingSummary | null;
+            errorMessage: string | null;
+            selectedPlanCode: PortalBillingPlanCode;
+            checkoutStatus: PortalCheckoutStatus;
+            checkoutErrorMessage: string | null;
+        };
         errorMessage: string | null;
         settingsMessage: string | null;
         isSavingSettings: boolean;
@@ -62,8 +80,20 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short'
 });
-const portalTitle = normalizePortalTitle(portalConfig.portalTitle);
 const initialAuthMode = resolveInitialAuthMode(window.location.pathname);
+let portalBillingRequestSequence = 0;
+const BILLING_CHECKOUT_PLANS: Array<{ code: PortalBillingPlanCode; label: string; detail: string }> = [
+    {
+        code: 'starter_monthly',
+        label: 'Starter Monthly',
+        detail: 'Basic recurring plan for early customer rollout.'
+    },
+    {
+        code: 'growth_monthly',
+        label: 'Growth Monthly',
+        detail: 'Expanded recurring plan for higher-volume usage.'
+    }
+];
 
 const state: AppState = {
     portal: {
@@ -72,6 +102,14 @@ const state: AppState = {
         session: null,
         leads: null,
         settings: null,
+        billing: {
+            status: 'idle',
+            summary: null,
+            errorMessage: null,
+            selectedPlanCode: 'starter_monthly',
+            checkoutStatus: 'idle',
+            checkoutErrorMessage: null
+        },
         errorMessage: null,
         settingsMessage: null,
         isSavingSettings: false,
@@ -112,6 +150,14 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             session,
             leads,
             settings,
+            billing: {
+                status: 'loading',
+                summary: state.portal.billing.summary,
+                errorMessage: null,
+                selectedPlanCode: state.portal.billing.selectedPlanCode,
+                checkoutStatus: 'idle',
+                checkoutErrorMessage: null
+            },
             errorMessage: null,
             settingsMessage: null,
             isSavingSettings: false,
@@ -127,6 +173,9 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
                 email: state.portal.signupForm.email
             })
         };
+        renderApp();
+        void loadPortalBillingSummary();
+        return;
     } catch (error) {
         const statusCode = error instanceof Error && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : null;
         const isUnauthorized = statusCode === 401;
@@ -137,6 +186,14 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
             session: null,
             leads: null,
             settings: null,
+            billing: {
+                status: 'idle',
+                summary: null,
+                errorMessage: null,
+                selectedPlanCode: state.portal.billing.selectedPlanCode,
+                checkoutStatus: 'idle',
+                checkoutErrorMessage: null
+            },
             errorMessage:
                 isUnauthorized && options?.suppressErrorOnUnauthorized
                     ? null
@@ -162,15 +219,61 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
     renderApp();
 }
 
+async function loadPortalBillingSummary() {
+    const requestId = ++portalBillingRequestSequence;
+
+    state.portal.billing = {
+        status: 'loading',
+        summary: state.portal.billing.summary,
+        errorMessage: null,
+        selectedPlanCode: state.portal.billing.selectedPlanCode,
+        checkoutStatus: state.portal.billing.checkoutStatus,
+        checkoutErrorMessage: state.portal.billing.checkoutErrorMessage
+    };
+    renderApp();
+
+    try {
+        const summary = await fetchPortalBillingSummary();
+
+        if (requestId !== portalBillingRequestSequence || state.portal.status !== 'ready') {
+            return;
+        }
+
+        state.portal.billing = {
+            status: 'ready',
+            summary,
+            errorMessage: null,
+            selectedPlanCode: state.portal.billing.selectedPlanCode,
+            checkoutStatus: state.portal.billing.checkoutStatus,
+            checkoutErrorMessage: state.portal.billing.checkoutErrorMessage
+        };
+    } catch (error) {
+        if (requestId !== portalBillingRequestSequence || state.portal.status !== 'ready') {
+            return;
+        }
+
+        state.portal.billing = {
+            status: 'error',
+            summary: state.portal.billing.summary,
+            errorMessage: getErrorMessage(error, 'Unable to load billing details right now.'),
+            selectedPlanCode: state.portal.billing.selectedPlanCode,
+            checkoutStatus: state.portal.billing.checkoutStatus,
+            checkoutErrorMessage: state.portal.billing.checkoutErrorMessage
+        };
+    }
+
+    renderApp();
+}
+
 function renderApp() {
     rootElement.innerHTML = `
         <div class="portal-shell">
             <section class="portal-hero">
                 <div class="portal-hero__copy">
                     <p class="eyebrow">Private Dashboard</p>
-                    <h1>Sign in to Estimate Engine</h1>
+                    <h1>Review estimate requests before they go cold.</h1>
                     <p class="hero-copy">
-                        Access estimate requests, company settings, and estimator configuration for your account.
+                        Sign in to manage submitted requests, pricing rules, company details, and estimator configuration.
                     </p>
                 </div>
             </section>
@@ -220,23 +323,52 @@ function renderPortalSurface(): string {
             <div class="surface-card surface-card--notes">
                 <div class="surface-header">
                     <div>
-                        <p class="card-label">What You Can Manage</p>
-                        <h2>Manage your estimate engine from one secure workspace</h2>
+                        <p class="card-label">Dashboard Preview</p>
+                        <h2>Today's estimate activity</h2>
                     </div>
                 </div>
-                <div class="feature-list">
-                    <div class="feature-item">
-                        <h3>Estimate requests</h3>
-                        <p>Review new customer requests and estimate snapshots.</p>
+                <div class="activity-preview-list" aria-label="Example estimate activity">
+                    <div class="activity-preview-row">
+                        <div>
+                            <h3>Sarah Mitchell</h3>
+                            <p>System replacement estimate</p>
+                        </div>
+                        <strong>$4,850</strong>
+                        <span class="status-pill status-pill--new">New</span>
                     </div>
-                    <div class="feature-item">
-                        <h3>Company profile</h3>
-                        <p>Update business details, contact information, and branding.</p>
+                    <div class="activity-preview-row">
+                        <div>
+                            <h3>James Carter</h3>
+                            <p>High-efficiency upgrade</p>
+                        </div>
+                        <strong>$6,200</strong>
+                        <span class="status-pill status-pill--info">Needs review</span>
                     </div>
-                    <div class="feature-item">
-                        <h3>Estimator settings</h3>
-                        <p>Manage pricing inputs and saved configuration versions.</p>
+                    <div class="activity-preview-row">
+                        <div>
+                            <h3>Maria Lopez</h3>
+                            <p>Service estimate request</p>
+                        </div>
+                        <strong>$1,950</strong>
+                        <span class="status-pill status-pill--follow-up">Follow up</span>
                     </div>
+                </div>
+                <div class="settings-preview">
+                    <p class="card-label">Estimator settings</p>
+                    <dl>
+                        <div>
+                            <dt>Base price</dt>
+                            <dd>$100</dd>
+                        </div>
+                        <div>
+                            <dt>Size multiplier</dt>
+                            <dd>1.5x</dd>
+                        </div>
+                        <div>
+                            <dt>Config version</dt>
+                            <dd>Active</dd>
+                        </div>
+                    </dl>
                 </div>
             </div>
         </section>
@@ -456,6 +588,7 @@ function renderAuthModeSwitch(): string {
 function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, settings: PortalClientSettings): string {
     const errorMessage = state.portal.errorMessage;
     const demoResetAvailable = isDemoResetAvailable(session);
+    const billingPanelMarkup = renderBillingPanel();
 
     return `
         <section class="dashboard-shell">
@@ -493,6 +626,7 @@ function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, set
                         leads.summary.latestLeadCreatedAt ? formatDateTime(leads.summary.latestLeadCreatedAt) : 'No requests yet'
                     )}
                 </div>
+                ${billingPanelMarkup}
                 ${renderSettingsPanel(settings)}
             </div>
             <div class="surface-card lead-column">
@@ -562,6 +696,187 @@ function renderMetricCard(label: string, value: string): string {
             <p class="metric-value">${escapeHtml(value)}</p>
         </div>
     `;
+}
+
+function renderBillingPanel(): string {
+    const billingState = state.portal.billing;
+    const checkoutControlsMarkup = renderBillingCheckoutControls();
+
+    if (billingState.status === 'loading') {
+        return `
+            <section class="billing-panel">
+                <div class="settings-panel__header">
+                    <div>
+                        <p class="card-label">Billing Summary</p>
+                        <h3>Current billing status</h3>
+                    </div>
+                    <p class="surface-meta">Loading</p>
+                </div>
+                <p class="surface-copy">
+                    Checking your current billing status and entitlement summary.
+                </p>
+                ${checkoutControlsMarkup}
+                <div class="portal-loading">
+                    <div class="portal-loading-bar"></div>
+                </div>
+            </section>
+        `;
+    }
+
+    if (billingState.status === 'error') {
+        return `
+            <section class="billing-panel">
+                <div class="settings-panel__header">
+                    <div>
+                        <p class="card-label">Billing Summary</p>
+                        <h3>Current billing status</h3>
+                    </div>
+                    <button class="secondary-button" type="button" id="portal-refresh-billing-button">Refresh Billing</button>
+                </div>
+                <p class="portal-feedback portal-feedback--error">
+                    ${escapeHtml(billingState.errorMessage || 'Unable to load billing details right now.')}
+                </p>
+                <p class="surface-copy">
+                    Your dashboard access is still available. This only affects the billing summary section.
+                </p>
+                ${checkoutControlsMarkup}
+            </section>
+        `;
+    }
+
+    if (!billingState.summary) {
+        return `
+            <section class="billing-panel">
+                <div class="settings-panel__header">
+                    <div>
+                        <p class="card-label">Billing Summary</p>
+                        <h3>Current billing status</h3>
+                    </div>
+                    <button class="secondary-button" type="button" id="portal-refresh-billing-button">Refresh Billing</button>
+                </div>
+                <p class="surface-copy">
+                    Billing details are not available yet. Your company dashboard access remains available.
+                </p>
+                ${checkoutControlsMarkup}
+            </section>
+        `;
+    }
+
+    const { enforcementState, subscription, entitlements } = billingState.summary;
+    const hasActiveSubscriptionSnapshot = subscription.status !== null;
+    const billingCopy = hasActiveSubscriptionSnapshot
+        ? 'This summary comes from the normalized billing model in your account. It does not change product access by itself in the current rollout.'
+        : enforcementState === 'not_enforced'
+          ? 'No active subscription is recorded yet. Billing is not currently enforced, so your company can continue using the portal and current product features.'
+          : 'No active subscription is recorded yet. Billing enforcement is enabled for new tenants, so the next billing step will need to be completed.';
+
+    return `
+        <section class="billing-panel">
+            <div class="settings-panel__header">
+                <div>
+                    <p class="card-label">Billing Summary</p>
+                    <h3>Current billing status</h3>
+                </div>
+                <button class="secondary-button" type="button" id="portal-refresh-billing-button">Refresh Billing</button>
+            </div>
+            <p class="surface-copy">${escapeHtml(billingCopy)}</p>
+            <div class="billing-summary-grid">
+                ${renderBillingFact('Enforcement', formatBillingEnforcementState(enforcementState))}
+                ${renderBillingFact('Subscription Status', formatBillingSubscriptionStatus(subscription.status))}
+                ${renderBillingFact('Plan Code', subscription.planCode ?? 'No active subscription')}
+                ${renderBillingFact('Billing Interval', formatBillingInterval(subscription.billingInterval))}
+                ${renderBillingFact('Currency', subscription.currencyCode ?? 'Not set')}
+                ${renderBillingFact('Amount', formatBillingAmount(subscription.unitAmountMinor, subscription.currencyCode))}
+                ${renderBillingFact('Current Period Starts', formatOptionalDateTime(subscription.currentPeriodStartsAt))}
+                ${renderBillingFact('Current Period Ends', formatOptionalDateTime(subscription.currentPeriodEndsAt))}
+                ${renderBillingFact('Cancel At Period End', formatBooleanStatus(subscription.cancelAtPeriodEnd))}
+                ${renderBillingFact('Canceled At', formatOptionalDateTime(subscription.canceledAt))}
+                ${renderBillingFact('Ended At', formatOptionalDateTime(subscription.endedAt))}
+            </div>
+            <div class="settings-history">
+                <div class="settings-history__header">
+                    <p class="card-label">Entitlements</p>
+                    <p class="surface-meta">Normalized read model</p>
+                </div>
+                <div class="billing-entitlement-list">
+                    ${renderBillingEntitlement('Portal access', entitlements.portalAccess)}
+                    ${renderBillingEntitlement('Widget publish', entitlements.widgetPublish)}
+                    ${renderBillingEntitlement('Branded experience', entitlements.brandedExperience)}
+                </div>
+            </div>
+            ${checkoutControlsMarkup}
+        </section>
+    `;
+}
+
+function renderBillingCheckoutControls(): string {
+    const billingState = state.portal.billing;
+    const selectedPlan = getBillingPlanOption(billingState.selectedPlanCode);
+    const isSubmitting = billingState.checkoutStatus === 'submitting';
+    const isRedirecting = billingState.checkoutStatus === 'redirecting';
+    const helperCopy =
+        billingState.summary?.enforcementState === 'not_enforced'
+            ? 'Checkout is optional right now. Platform access remains available while billing enforcement is off.'
+            : 'Checkout prepares the next billing step for your tenant using the normalized backend billing flow.';
+
+    return `
+        <section class="billing-checkout">
+            <div class="settings-history__header">
+                <div>
+                    <p class="card-label">Checkout</p>
+                    <h3>Start a subscription checkout</h3>
+                </div>
+                <p class="surface-meta">Canonical plan codes only</p>
+            </div>
+            <p class="surface-copy">${escapeHtml(helperCopy)}</p>
+            ${billingState.checkoutErrorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(billingState.checkoutErrorMessage)}</p>` : ''}
+            ${isRedirecting ? '<p class="portal-feedback portal-feedback--success">Checkout started. Redirecting to the hosted checkout now.</p>' : ''}
+            <form id="portal-billing-checkout-form" class="billing-checkout-form">
+                <label class="field">
+                    <span class="field-label">Plan</span>
+                    <select class="field-input" name="planCode" ${isSubmitting || isRedirecting ? 'disabled' : ''}>
+                        ${BILLING_CHECKOUT_PLANS.map((plan) => renderBillingPlanOption(plan.code, plan.label, plan.detail, plan.code === billingState.selectedPlanCode)).join('')}
+                    </select>
+                    <span class="field-hint">${escapeHtml(selectedPlan.detail)}</span>
+                </label>
+                <button class="primary-button billing-checkout-form__submit" type="submit" ${isSubmitting || isRedirecting ? 'disabled' : ''}>
+                    ${isSubmitting ? 'Starting Checkout...' : isRedirecting ? 'Redirecting...' : 'Start Checkout'}
+                </button>
+            </form>
+        </section>
+    `;
+}
+
+function renderBillingPlanOption(code: PortalBillingPlanCode, label: string, detail: string, isSelected: boolean): string {
+    return `<option value="${escapeHtml(code)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)} - ${escapeHtml(detail)}</option>`;
+}
+
+function renderBillingFact(label: string, value: string): string {
+    return `
+        <div class="billing-summary-card">
+            <p class="metric-label">${escapeHtml(label)}</p>
+            <p class="billing-summary-card__value">${escapeHtml(value)}</p>
+        </div>
+    `;
+}
+
+function renderBillingEntitlement(label: string, enabled: boolean): string {
+    return `
+        <div class="billing-entitlement">
+            <span class="billing-entitlement__label">${escapeHtml(label)}</span>
+            <span class="billing-entitlement__badge${enabled ? ' is-allowed' : ' is-limited'}">
+                ${enabled ? 'Available' : 'Unavailable'}
+            </span>
+        </div>
+    `;
+}
+
+function getBillingPlanOption(planCode: PortalBillingPlanCode): { code: PortalBillingPlanCode; label: string; detail: string } {
+    return BILLING_CHECKOUT_PLANS.find((plan) => plan.code === planCode) ?? BILLING_CHECKOUT_PLANS[0];
+}
+
+function isPortalBillingPlanCode(value: string): value is PortalBillingPlanCode {
+    return BILLING_CHECKOUT_PLANS.some((plan) => plan.code === value);
 }
 
 function renderLeadCard(lead: PortalLeadsResponse['leads'][number]): string {
@@ -739,6 +1054,14 @@ function wirePortalEvents() {
                     session: null,
                     leads: null,
                     settings: null,
+                    billing: {
+                        status: 'idle',
+                        summary: null,
+                        errorMessage: null,
+                        selectedPlanCode: state.portal.billing.selectedPlanCode,
+                        checkoutStatus: 'idle',
+                        checkoutErrorMessage: null
+                    },
                     errorMessage: getErrorMessage(error, 'Unable to sign in.'),
                     settingsMessage: null,
                     isSavingSettings: false,
@@ -828,6 +1151,14 @@ function wirePortalEvents() {
                     session: null,
                     leads: null,
                     settings: null,
+                    billing: {
+                        status: 'idle',
+                        summary: null,
+                        errorMessage: null,
+                        selectedPlanCode: state.portal.billing.selectedPlanCode,
+                        checkoutStatus: 'idle',
+                        checkoutErrorMessage: null
+                    },
                     errorMessage: getErrorMessage(error, 'Unable to create your account.'),
                     settingsMessage: null,
                     isSavingSettings: false,
@@ -899,6 +1230,74 @@ function wirePortalEvents() {
     if (refreshButton instanceof HTMLButtonElement) {
         refreshButton.addEventListener('click', async () => {
             await loadPortalDashboard();
+        });
+    }
+
+    const refreshBillingButton = document.getElementById('portal-refresh-billing-button');
+
+    if (refreshBillingButton instanceof HTMLButtonElement) {
+        refreshBillingButton.addEventListener('click', async () => {
+            if (state.portal.status !== 'ready') {
+                return;
+            }
+
+            await loadPortalBillingSummary();
+        });
+    }
+
+    const billingCheckoutForm = document.getElementById('portal-billing-checkout-form');
+
+    if (billingCheckoutForm instanceof HTMLFormElement) {
+        const planField = billingCheckoutForm.elements.namedItem('planCode');
+
+        if (planField instanceof HTMLSelectElement) {
+            planField.addEventListener('change', () => {
+                if (!isPortalBillingPlanCode(planField.value)) {
+                    return;
+                }
+
+                state.portal.billing.selectedPlanCode = planField.value;
+                state.portal.billing.checkoutStatus = 'idle';
+                state.portal.billing.checkoutErrorMessage = null;
+                renderApp();
+            });
+        }
+
+        billingCheckoutForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            if (state.portal.status !== 'ready') {
+                return;
+            }
+
+            const formData = new FormData(billingCheckoutForm);
+            const planCode = String(formData.get('planCode') ?? '');
+
+            if (!isPortalBillingPlanCode(planCode)) {
+                state.portal.billing.checkoutStatus = 'error';
+                state.portal.billing.checkoutErrorMessage = 'Select a valid plan before starting checkout.';
+                renderApp();
+                return;
+            }
+
+            state.portal.billing.selectedPlanCode = planCode;
+            state.portal.billing.checkoutStatus = 'submitting';
+            state.portal.billing.checkoutErrorMessage = null;
+            renderApp();
+
+            try {
+                const checkoutSession = await startPortalCheckout(planCode);
+
+                state.portal.billing.checkoutStatus = 'redirecting';
+                state.portal.billing.checkoutErrorMessage = null;
+                renderApp();
+
+                window.location.assign(checkoutSession.checkoutUrl);
+            } catch (error) {
+                state.portal.billing.checkoutStatus = 'error';
+                state.portal.billing.checkoutErrorMessage = getCheckoutErrorMessage(error);
+                renderApp();
+            }
         });
     }
 
@@ -979,6 +1378,14 @@ function wirePortalEvents() {
                 session: null,
                 leads: null,
                 settings: null,
+                billing: {
+                    status: 'idle',
+                    summary: null,
+                    errorMessage: null,
+                    selectedPlanCode: state.portal.billing.selectedPlanCode,
+                    checkoutStatus: 'idle',
+                    checkoutErrorMessage: null
+                },
                 errorMessage: null,
                 settingsMessage: null,
                 isSavingSettings: false,
@@ -1120,10 +1527,6 @@ function isDemoResetAvailable(session: PortalSession | null): boolean {
     return Boolean(session && session.client.name === portalConfig.defaultClientId);
 }
 
-function normalizePortalTitle(value: string): string {
-    return value.replace(/client portal/gi, 'Private Dashboard').replace(/portal/gi, 'Dashboard');
-}
-
 function resolveInitialAuthMode(pathname: string): AuthMode {
     const normalizedPath = normalizePortalPath(pathname);
 
@@ -1248,8 +1651,51 @@ function formatCurrency(value: number): string {
     return currencyFormatter.format(value);
 }
 
+function formatBillingAmount(value: number | null, currencyCode: string | null): string {
+    if (value === null || !currencyCode) {
+        return 'Not set';
+    }
+
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currencyCode
+        }).format(value / 100);
+    } catch {
+        return `${currencyCode} ${(value / 100).toFixed(2)}`;
+    }
+}
+
 function formatDateTime(value: string): string {
     return dateTimeFormatter.format(new Date(value));
+}
+
+function formatOptionalDateTime(value: string | null): string {
+    return value ? formatDateTime(value) : 'Not set';
+}
+
+function formatBooleanStatus(value: boolean): string {
+    return value ? 'Yes' : 'No';
+}
+
+function formatBillingEnforcementState(value: PortalBillingSummary['enforcementState']): string {
+    return value === 'not_enforced' ? 'Not enforced' : 'Enforced';
+}
+
+function formatBillingSubscriptionStatus(value: PortalBillingSummary['subscription']['status']): string {
+    if (!value) {
+        return 'No active subscription';
+    }
+
+    return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatBillingInterval(value: PortalBillingSummary['subscription']['billingInterval']): string {
+    if (!value) {
+        return 'Not set';
+    }
+
+    return value === 'manual' ? 'Manual' : value === 'month' ? 'Monthly' : 'Yearly';
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -1258,6 +1704,18 @@ function getErrorMessage(error: unknown, fallback: string): string {
     }
 
     return fallback;
+}
+
+function getCheckoutErrorMessage(error: unknown): string {
+    if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'billing_provider_not_configured'
+    ) {
+        return 'Billing checkout is not configured for this environment yet.';
+    }
+
+    return getErrorMessage(error, 'Checkout is temporarily unavailable. Please try again.');
 }
 
 function escapeHtml(value: string): string {

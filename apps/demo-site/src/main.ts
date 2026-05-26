@@ -292,23 +292,25 @@ function buildHomeMarkup(): string {
         <section class="hero">
             <div class="hero-copy-block">
                 <p class="eyebrow">Estimate Engine Demo</p>
-                <h1>See how customers request an estimate from your website.</h1>
+                <h1>Estimate requests from your website, ready for follow-up.</h1>
                 <p class="hero-copy">
-                    Try the public estimate flow your customers would use, then see how submitted requests appear in the private portal.
+                    Give visitors a guided estimate flow, capture their contact details, and send every request into a private dashboard.
                 </p>
-                <ol class="workflow-list" aria-label="Estimate workflow">
-                    <li>Customer enters project details.</li>
-                    <li>Estimate Engine calculates the price from saved settings.</li>
-                    <li>Contact details create a lead for the private portal.</li>
-                </ol>
+                <div class="hero-context">
+                    <span>Public estimator</span>
+                    <span>Lead capture</span>
+                    <span>Private follow-up queue</span>
+                </div>
             </div>
             <aside class="hero-note">
-                <p class="card-label">Product Flow</p>
-                <h2>Public estimate form, private request management.</h2>
-                <p class="surface-copy">
-                    The demo site represents the customer-facing experience. The portal is reserved for signed-in business users
-                    who manage requests, profile details, and estimator configuration.
-                </p>
+                <p class="card-label">Workflow</p>
+                <h2>What happens after a visitor starts?</h2>
+                <ol class="workflow-list" aria-label="Estimate request workflow">
+                    <li>They answer a few estimate questions.</li>
+                    <li>Estimate Engine calculates a price snapshot from saved rules.</li>
+                    <li>Contact details turn the estimate into a request.</li>
+                    <li>The request appears in the private portal for follow-up.</li>
+                </ol>
             </aside>
         </section>
 
@@ -317,21 +319,21 @@ function buildHomeMarkup(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">Estimate Experience</p>
-                        <h2>Customer-facing estimate walkthrough</h2>
+                        <h2>Guided estimate flow</h2>
                     </div>
                     <p class="surface-meta">Live API flow</p>
                 </div>
                 <p class="surface-copy">
-                    This form calls the same public estimate and lead endpoints used by the embeddable widget.
+                    Customers enter project details, review a calculated estimate snapshot, then decide whether to send the request to your team.
                 </p>
                 <div class="widget-zone">
                     <div class="widget-preview-shell">
                         <section class="estimate-demo" aria-labelledby="estimate-demo-title">
                             <div class="estimate-demo__intro">
-                                <p class="card-label">Public Estimate Flow</p>
+                                <p class="card-label">Step 1 - Estimate Details</p>
                                 <h3 id="estimate-demo-title">Try the live estimate demo</h3>
                                 <p class="surface-copy">
-                                    Use sample project details to calculate an estimate with the same public API flow used by the hosted widget.
+                                    Start with sample service details. The result uses the same public estimate endpoint as the embedded widget.
                                 </p>
                                 <p class="estimate-demo__config" id="estimate-config-status">Loading demo pricing...</p>
                             </div>
@@ -370,13 +372,36 @@ function buildHomeMarkup(): string {
                 <div class="surface-header">
                     <div>
                         <p class="card-label">Private Dashboard</p>
-                        <h2>Submitted requests move into the portal</h2>
+                        <h2>New requests are ready for review</h2>
                     </div>
                 </div>
                 <p class="surface-copy">
                     After a visitor submits contact details, the request is stored for the tenant and appears in the
                     authenticated dashboard for review.
                 </p>
+                <div class="example-request-card" aria-label="Example request preview">
+                    <div class="example-request-card__header">
+                        <div>
+                            <p class="card-label">Example Request</p>
+                            <h3>Sarah Mitchell</h3>
+                        </div>
+                        <span class="status-pill status-pill--new">New request</span>
+                    </div>
+                    <dl class="request-detail-list">
+                        <div>
+                            <dt>Service</dt>
+                            <dd>System replacement estimate</dd>
+                        </div>
+                        <div>
+                            <dt>Estimate snapshot</dt>
+                            <dd>$4,850</dd>
+                        </div>
+                        <div>
+                            <dt>Source</dt>
+                            <dd>Website estimate demo</dd>
+                        </div>
+                    </dl>
+                </div>
                 <figure class="portal-shot">
                     <img
                         src="/portal/portal-belovedjohndev.png"
@@ -522,7 +547,7 @@ function buildEstimateResultMarkup(input: EstimateInput, result: EstimateResult)
     return `
         <article class="estimate-result-card">
             <div>
-                <p class="card-label">Estimate Result</p>
+                <p class="card-label">Step 2 - Estimate Snapshot</p>
                 <h4>${formatCurrency(result.total)}</h4>
                 <p class="surface-copy">
                     ${input.size.toLocaleString()} sq ft, ${input.complexity} complexity, ${
@@ -557,10 +582,10 @@ function buildLeadCaptureMarkup(result: EstimateResult): string {
     return `
         <form class="lead-form" id="estimate-lead-form">
             <div>
-                <p class="card-label">Optional Lead Capture</p>
-                <h4>Send this estimate request</h4>
+                <p class="card-label">Step 3 - Send Request To Dashboard</p>
+                <h4>Send request to dashboard</h4>
                 <p class="surface-copy">
-                    Add contact details only if you want to create a public demo lead for ${formatCurrency(result.total)}.
+                    Add contact details to create a demo request with this ${formatCurrency(result.total)} estimate snapshot.
                 </p>
             </div>
             <label class="estimate-field">
@@ -575,7 +600,7 @@ function buildLeadCaptureMarkup(result: EstimateResult): string {
                 <span>Phone</span>
                 <input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 123 4567" />
             </label>
-            <button class="cta-link estimate-submit" type="submit">Send Request</button>
+            <button class="cta-link estimate-submit" type="submit">Send request to dashboard</button>
             <a class="estimate-portal-cta" href="${escapeHtmlAttribute(portalUrl)}">Portal login or signup</a>
             <p class="estimate-form__status" id="estimate-lead-status" role="status" aria-live="polite"></p>
         </form>
