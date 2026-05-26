@@ -1,7 +1,10 @@
 import { portalConfig } from './portalConfig';
 import {
     ApiErrorResponse,
+    PortalBillingPlanCode,
+    PortalBillingSummary,
     PortalClientSettings,
+    PortalCheckoutSession,
     PortalLeadsResponse,
     PortalLoginResponse,
     PortalSession
@@ -68,6 +71,19 @@ export async function fetchPortalLeads(limit = 25): Promise<PortalLeadsResponse>
 export async function fetchPortalClientSettings(): Promise<PortalClientSettings> {
     return requestPortalApi<PortalClientSettings>('/portal/client', {
         method: 'GET'
+    });
+}
+
+export async function fetchPortalBillingSummary(): Promise<PortalBillingSummary> {
+    return requestPortalApi<PortalBillingSummary>('/portal/billing', {
+        method: 'GET'
+    });
+}
+
+export async function startPortalCheckout(planCode: PortalBillingPlanCode): Promise<PortalCheckoutSession> {
+    return requestPortalApi<PortalCheckoutSession>('/portal/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ planCode })
     });
 }
 

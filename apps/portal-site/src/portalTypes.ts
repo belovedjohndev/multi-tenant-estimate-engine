@@ -96,6 +96,41 @@ export interface PortalLeadsResponse {
     }>;
 }
 
+export type PortalBillingEnforcementState = 'not_enforced' | 'enforced';
+
+export type PortalBillingSubscriptionStatus = 'pending' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'incomplete';
+
+export type PortalBillingInterval = 'month' | 'year' | 'manual';
+
+export type PortalBillingPlanCode = 'starter_monthly' | 'growth_monthly' | 'pro_monthly' | 'enterprise_manual';
+
+export interface PortalCheckoutSession {
+    provider: 'paddle' | 'paypal';
+    planCode: PortalBillingPlanCode;
+    checkoutUrl: string;
+}
+
+export interface PortalBillingSummary {
+    enforcementState: PortalBillingEnforcementState;
+    subscription: {
+        status: PortalBillingSubscriptionStatus | null;
+        planCode: PortalBillingPlanCode | null;
+        billingInterval: PortalBillingInterval | null;
+        currencyCode: string | null;
+        unitAmountMinor: number | null;
+        currentPeriodStartsAt: string | null;
+        currentPeriodEndsAt: string | null;
+        cancelAtPeriodEnd: boolean;
+        canceledAt: string | null;
+        endedAt: string | null;
+    };
+    entitlements: {
+        portalAccess: boolean;
+        widgetPublish: boolean;
+        brandedExperience: boolean;
+    };
+}
+
 export interface ApiErrorResponse {
     code: string;
     message: string;
