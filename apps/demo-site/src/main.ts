@@ -83,9 +83,9 @@ if (!(appRoot instanceof HTMLElement)) {
 }
 
 const rootElement: HTMLElement = appRoot;
-const supportEmail = 'support@belovedjohndev.com';
-const helloEmail = 'hello@belovedjohndev.com';
-const billingEmail = 'billing@belovedjohndev.com';
+const supportEmail = 'belovedjohn.dev@gmail.com';
+const helloEmail = 'belovedjohn.dev@gmail.com';
+const billingEmail = 'belovedjohn.dev@gmail.com';
 const portalUrl = resolvePortalUrl();
 let clientConfigPromise: Promise<ClientConfigData> | null = null;
 let activeEstimateInput: EstimateInput | null = null;
