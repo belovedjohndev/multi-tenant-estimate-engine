@@ -2,6 +2,16 @@
 
 Status: current runtime values are listed first. Billing provider integration is not active in the current MVP.
 
+## Runtime
+
+Required runtime:
+
+```text
+Node.js >=22.12.0
+```
+
+The root workspace and Vercel frontend builds should run on Node.js `>=22.12.0`. Vite 8 also supports Node `^20.19.0`, but this repository standardizes on the Node 22+ runtime path. If a hosting provider requires an exact Node setting, use `22.12.0` or newer.
+
 ## Production URLs
 
 ```text

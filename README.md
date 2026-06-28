@@ -26,11 +26,16 @@ For live runtime behavior and current route/capability details, use [`docs/CURRE
 
 ## Package Manager
 
-This repository currently uses npm. The checked-in lockfile state before the workspace cleanup was `apps/backend/package-lock.json` with npm lockfile version 3. Root workspace installs now run from the repository root:
+This repository currently uses npm. The root `package-lock.json` is the committed lockfile for all workspaces, and installs run from the repository root:
 
 ```powershell
 npm install
 ```
+
+Runtime requirement:
+
+- Node.js `>=22.12.0`
+- npm `11.x` is recorded in the root `packageManager` field
 
 The app-level `package.json` files still own their own scripts. Root scripts only delegate to those app-level commands.
 
@@ -118,9 +123,10 @@ The backend is configured for Render with the repo-managed [`render.yaml`](./ren
 
 Render service settings from `render.yaml`:
 
-- `rootDir: apps/backend`
-- `buildCommand: npm install --include=dev && npm run build`
-- `startCommand: npm run start`
+- `buildCommand: npm ci && npm run build:backend`
+- `startCommand: npm --workspace estimate-engine-backend run start`
+
+Use Node.js `>=22.12.0` for platform consistency with the root workspace and frontend build tooling.
 
 Required environment variables:
 
@@ -160,9 +166,8 @@ Create the Render service:
 Build verification command:
 
 ```powershell
-cd apps/backend
-npm install
-npm run build
+npm ci
+npm run build:backend
 npm test
 ```
 
@@ -204,6 +209,8 @@ npm run create:client-user
 ## Vercel Frontend Deployments
 
 Deploy the frontends as separate Vercel projects.
+
+Use Node.js `>=22.12.0` for Vercel builds. Vite 8 requires Node `^20.19.0 || >=22.12.0`, and this repository standardizes on the Node 22+ path.
 
 Demo-site options:
 

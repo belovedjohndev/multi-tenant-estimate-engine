@@ -53,6 +53,8 @@ belovedjohndev-estimate-engine-platform/
 
 The root `package.json` is an npm workspace coordinator. It does not own product runtime behavior. App-level package scripts remain the source of truth.
 
+The root package also declares the platform Node.js requirement: `>=22.12.0`. This satisfies the Vite 8 frontend build requirement and should be mirrored in hosted build settings.
+
 ## App Boundaries
 
 ### apps/backend
@@ -71,7 +73,8 @@ Owns:
 Deployment:
 
 - Render web service through root `render.yaml`
-- `rootDir: apps/backend`
+- build runs from the repository root with the root workspace lockfile
+- start command targets the backend workspace
 
 ### apps/demo-site
 

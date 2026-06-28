@@ -2,6 +2,7 @@
 
 ## Repository Hygiene
 
+- Confirm local and hosted build environments use Node.js `>=22.12.0`.
 - Run `npm install` from the repository root.
 - Run `npm run typecheck`.
 - Run `npm run build`.
@@ -11,7 +12,8 @@
 
 ## Backend: Render
 
-- Confirm `render.yaml` uses `rootDir: apps/backend`.
+- Confirm `render.yaml` builds through the root workspace with `npm ci && npm run build:backend`.
+- Confirm the Render service uses Node.js `>=22.12.0` for platform consistency.
 - Configure `DATABASE_URL`, `WIDGET_ORIGIN`, and `PORTAL_ORIGIN`.
 - Configure `CLIENT_PORTAL_COOKIE_SECURE=true` in production.
 - Configure `CLIENT_PORTAL_COOKIE_SAME_SITE` for the deployed frontend/backend relationship.
@@ -22,6 +24,7 @@
 ## Demo Site: Vercel
 
 - Deploy as a separate frontend project.
+- Confirm the Vercel project uses Node.js `>=22.12.0`.
 - Either use the repository root `vercel.json` for the demo build or set Vercel root directory to `apps/demo-site`.
 - Configure `VITE_API_BASE_URL`.
 - Verify `/`, `/pricing`, `/terms`, `/privacy`, and `/refund`.
@@ -31,6 +34,7 @@
 ## Portal Site: Vercel
 
 - Deploy as a separate frontend project rooted at `apps/portal-site`.
+- Confirm the Vercel project uses Node.js `>=22.12.0`.
 - Configure `VITE_API_BASE_URL`.
 - Verify `/login` and `/signup` load through the app-local Vercel rewrites.
 - Verify signup, login, session restore, logout, dashboard metrics, lead listing, settings save, and config version history.

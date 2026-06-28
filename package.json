@@ -4,6 +4,9 @@
   "private": true,
   "description": "Monorepo workspace for the Estimate Engine backend, demo site, portal site, and embeddable widget.",
   "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "workspaces": [
     "apps/backend",
     "apps/demo-site",
