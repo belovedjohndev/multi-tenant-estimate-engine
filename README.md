@@ -2,6 +2,8 @@
 
 Multi-tenant estimate and lead capture system for service businesses.
 
+For live runtime behavior and current route/capability details, use [`docs/CURRENT_IMPLEMENTATION.md`](./docs/CURRENT_IMPLEMENTATION.md). Architecture-oriented docs in `docs/` describe the intended platform shape and future work unless they explicitly say otherwise.
+
 ## Stack
 
 - TypeScript backend with Express
@@ -13,27 +15,37 @@ Multi-tenant estimate and lead capture system for service businesses.
 
 ## Project Structure
 
-- `backend/` - API, application layer, domain, and persistence
-- `widget/` - embeddable estimate widget
-- `demo-site/` - public-only demo and showcase host for the widget
-- `portal-site/` - authenticated client portal frontend
+- `apps/backend/` - API, application layer, domain, and persistence
+- `apps/widget/` - embeddable estimate widget
+- `apps/demo-site/` - public-only demo and showcase host for the widget
+- `apps/portal-site/` - authenticated client portal frontend
 - `docs/` - milestone notes and implementation documentation
 - `render.yaml` - Render backend deployment config
-- `vercel.json` - Vercel demo-site deployment config
+- `vercel.json` - root Vercel config for the demo-site project
+- `package.json` - npm workspace scripts for all app packages
+
+## Package Manager
+
+This repository currently uses npm. The checked-in lockfile state before the workspace cleanup was `apps/backend/package-lock.json` with npm lockfile version 3. Root workspace installs now run from the repository root:
+
+```powershell
+npm install
+```
+
+The app-level `package.json` files still own their own scripts. Root scripts only delegate to those app-level commands.
 
 ## Current Milestone
 
-The backend now has structured observability and operational health probes without changing existing API contracts.
+The platform now includes self-serve tenant signup alongside the existing portal login, settings, lead, and estimate flows.
 
-- Added JSON structured logging across backend request handling and runtime events.
-- Added request ID middleware with `X-Request-Id` response headers.
-- Added request start/end logging with status code and duration for all routes.
-- Added business event logs for login, lead creation, pricing config version creation/activation, and lead email delivery outcomes.
-- Added `/health`, `/health/db`, and `/health/email` endpoints for operational diagnostics.
-- Added a centralized error handler with structured error logging.
+- Added `POST /auth/signup` for billing-free tenant onboarding.
+- Added transactional bootstrap of tenant, first portal user, branding defaults, initial config version, audit logs, and first session.
+- Added single-shell portal signup mode with direct `/signup` support in production.
+- Preserved the existing login flow for seeded/demo tenants.
 
 Milestone notes:
 
+- [`docs/milestones/tenant-self-serve-signup.md`](./docs/milestones/tenant-self-serve-signup.md)
 - [`docs/milestones/observability-and-operational-hardening.md`](./docs/milestones/observability-and-operational-hardening.md)
 - [`docs/milestones/backend-critical-flow-tests.md`](./docs/milestones/backend-critical-flow-tests.md)
 - [`docs/milestones/http-only-cookie-auth.md`](./docs/milestones/http-only-cookie-auth.md)
@@ -48,7 +60,6 @@ Milestone notes:
 Backend:
 
 ```powershell
-cd backend
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5434/estimate_engine"
 $env:WIDGET_ORIGIN="http://localhost:4173"
 $env:PORTAL_ORIGIN="http://localhost:4174"
@@ -58,28 +69,47 @@ $env:CLIENT_PORTAL_SESSION_TTL_HOURS="168"
 $env:CLIENT_PORTAL_COOKIE_SECURE="false"
 $env:CLIENT_PORTAL_COOKIE_SAME_SITE="lax"
 npm install
-npm run dev
+npm run dev:backend
 ```
 
 Demo-site:
 
 ```powershell
-cd demo-site
 $env:VITE_API_BASE_URL="http://localhost:3000"
 $env:VITE_CLIENT_ID="demo"
 npm install
-npm run dev
+npm run dev:demo
 ```
 
 Portal-site:
 
 ```powershell
-cd portal-site
 $env:VITE_API_BASE_URL="http://localhost:3000"
 $env:VITE_DEFAULT_CLIENT_ID="demo"
 $env:VITE_PORTAL_TITLE="Estimate Engine Client Portal"
 npm install
-npm run dev
+npm run dev:portal
+```
+
+Widget build:
+
+```powershell
+npm install
+npm run build:widget
+```
+
+The widget build emits deterministic browser bundles under `apps/widget/dist/`:
+
+- `estimate-engine-widget.es.js` for module imports
+- `estimate-engine-widget.iife.js` for direct browser script embedding with `window.EstimateEngineWidget`
+- `index.d.ts` TypeScript declarations
+ 
+Workspace verification:
+
+```powershell
+npm run typecheck
+npm run build
+npm test
 ```
 
 ## Backend Deployment on Render
@@ -88,7 +118,7 @@ The backend is configured for Render with the repo-managed [`render.yaml`](./ren
 
 Render service settings from `render.yaml`:
 
-- `rootDir: backend`
+- `rootDir: apps/backend`
 - `buildCommand: npm install --include=dev && npm run build`
 - `startCommand: npm run start`
 
@@ -130,7 +160,7 @@ Create the Render service:
 Build verification command:
 
 ```powershell
-cd backend
+cd apps/backend
 npm install
 npm run build
 npm test
@@ -139,16 +169,18 @@ npm test
 Hosted database migration command:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/001_initial.sql -f backend/db/migrations/002_lead_notifications.sql -f backend/db/migrations/003_client_portal_auth.sql -f backend/db/migrations/004_client_settings_onboarding.sql -f backend/db/migrations/005_config_versioning_and_audit.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/001_initial.sql -f apps/backend/db/migrations/002_lead_notifications.sql -f apps/backend/db/migrations/003_client_portal_auth.sql -f apps/backend/db/migrations/004_client_settings_onboarding.sql -f apps/backend/db/migrations/005_config_versioning_and_audit.sql -f apps/backend/db/migrations/006_self_serve_signup.sql -f apps/backend/db/migrations/007_billing_foundation.sql
 ```
 
 Incremental migration for an existing deployed database:
 
 ```powershell
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/002_lead_notifications.sql
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/003_client_portal_auth.sql
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/004_client_settings_onboarding.sql
-psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f backend/db/migrations/005_config_versioning_and_audit.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/002_lead_notifications.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/003_client_portal_auth.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/004_client_settings_onboarding.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/005_config_versioning_and_audit.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/006_self_serve_signup.sql
+psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -f apps/backend/db/migrations/007_billing_foundation.sql
 ```
 
 Configure a tenant notification recipient:
@@ -160,7 +192,7 @@ psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "UPDATE clients SET notifi
 Bootstrap a client portal user:
 
 ```powershell
-cd backend
+cd apps/backend
 $env:DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME"
 $env:CLIENT_ID="demo"
 $env:CLIENT_USER_EMAIL="owner@example.com"
@@ -169,15 +201,14 @@ $env:CLIENT_USER_PASSWORD="change-me-123"
 npm run create:client-user
 ```
 
-## Demo-Site Deployment on Vercel
+## Vercel Frontend Deployments
 
-The demo-site is configured for Vercel with the repo-managed [`vercel.json`](./vercel.json) file.
+Deploy the frontends as separate Vercel projects.
 
-Vercel config from `vercel.json`:
+Demo-site options:
 
-- installs dependencies from `demo-site/`
-- builds `demo-site/`
-- serves `demo-site/dist`
+- root project using repository [`vercel.json`](./vercel.json), which runs `npm run build:demo` and serves `apps/demo-site/dist`
+- or Vercel project root `apps/demo-site`, using `apps/demo-site/vercel.json`
 
 This app is intentionally public-only and should be used as the sales/demo surface plus sample widget host.
 
@@ -204,29 +235,30 @@ vercel env add VITE_API_BASE_URL production
 vercel env add VITE_CLIENT_ID production
 vercel env add VITE_LAUNCHER_LABEL production
 vercel env add VITE_MODAL_TITLE production
+npm run build:demo
 vercel --prod
 ```
 
 Local production-style build verification:
 
 ```powershell
-cd demo-site
 $env:VITE_API_BASE_URL="http://localhost:3000"
 $env:VITE_CLIENT_ID="demo"
 npm install
-npm run build
+npm run build:demo
 ```
 
 ## Portal-Site Deployment
 
-Deploy `portal-site/` as a separate frontend project.
+Deploy `apps/portal-site/` as its own frontend project.
 
 Suggested project settings:
 
-- root directory: `portal-site`
+- root directory: `apps/portal-site`
 - install command: `npm install`
 - build command: `npm run build`
 - output directory: `dist`
+- use the app-local `apps/portal-site/vercel.json` so `/login` and `/signup` rewrite to the single-shell portal entrypoint
 
 Required environment variables:
 
@@ -240,12 +272,11 @@ Recommended environment variables:
 Local production-style build verification:
 
 ```powershell
-cd portal-site
 $env:VITE_API_BASE_URL="http://localhost:3000"
 $env:VITE_DEFAULT_CLIENT_ID="demo"
 $env:VITE_PORTAL_TITLE="Estimate Engine Client Portal"
 npm install
-npm run build
+npm run build:portal
 ```
 
 ## Public Smoke Test
@@ -265,11 +296,13 @@ After both deployments are live:
 11. Confirm the configured client inbox receives the new lead notification email.
 12. Open the deployed portal-site URL and sign in there.
 13. Confirm the new lead appears in the dashboard.
-14. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
-15. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
-16. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
-17. Refresh the portal-site and confirm the session is still resolved from the HttpOnly cookie via `GET /auth/me`.
-18. Sign out and confirm the portal returns to the login screen and `POST /auth/logout` clears the cookie-backed session.
+14. Open the deployed `/signup` URL directly and confirm it loads the same shell in signup mode.
+15. Create a new tenant account and confirm it lands in the authenticated dashboard state.
+16. Update company settings in the portal and confirm the estimator still works with the same tenant slug.
+17. Change the pricing config JSON, save it, and confirm the portal shows a new active config version plus history entry.
+18. Submit another lead and confirm PostgreSQL stores the newer `config_version_id`.
+19. Refresh the portal-site and confirm the session is still resolved from the HttpOnly cookie via `GET /auth/me`.
+20. Sign out and confirm the portal returns to the login screen and `POST /auth/logout` clears the cookie-backed session.
 
 Example PostgreSQL verification command:
 
@@ -282,6 +315,7 @@ psql "postgresql://USER:PASSWORD@HOST:5432/DBNAME" -c "SELECT leads.id, leads.em
 Authenticated dashboard endpoints:
 
 - `POST /auth/login`
+- `POST /auth/signup`
 - `GET /auth/me`
 - `POST /auth/logout`
 - `GET /me/leads?limit=25`
@@ -314,7 +348,7 @@ Operational notes:
 Run the backend test suite:
 
 ```powershell
-cd backend
+cd apps/backend
 npm install
 npm test
 ```
@@ -322,6 +356,7 @@ npm test
 Current automated coverage:
 
 - `POST /auth/login`, `GET /auth/me`, and `POST /auth/logout`
+- `POST /auth/signup`
 - unauthenticated rejection for protected portal routes
 - pricing config version creation rules
 - unchanged pricing saves not creating a new config version
