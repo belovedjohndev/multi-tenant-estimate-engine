@@ -1,6 +1,6 @@
 # Environment Matrix
 
-Status: current runtime values are listed first. Planned or optional billing values are called out explicitly.
+Status: current runtime values are listed first. Billing provider integration is not active in the current MVP.
 
 ## Production URLs
 
@@ -46,20 +46,6 @@ CLIENT_PORTAL_DEMO_RESET_PHONE=
 CLIENT_PORTAL_DEMO_RESET_NOTIFICATION_EMAIL=
 CLIENT_PORTAL_DEMO_RESET_LOGO_URL=
 CLIENT_PORTAL_DEMO_RESET_ESTIMATOR_CONFIG=
-```
-
-Billing controls currently used by the backend billing foundation:
-
-```text
-CLIENT_BILLING_ENFORCEMENT=false
-PADDLE_API_KEY=
-PADDLE_ENVIRONMENT=sandbox
-PADDLE_API_BASE_URL=
-PADDLE_CHECKOUT_URL=
-PADDLE_PRICE_ID_STARTER_MONTHLY=
-PADDLE_PRICE_ID_GROWTH_MONTHLY=
-PADDLE_WEBHOOK_SECRET=
-PADDLE_WEBHOOK_TOLERANCE_SECONDS=
 ```
 
 ## Demo Site: Vercel
@@ -125,4 +111,4 @@ secondaryColor
 
 ## Planned Only
 
-PayPal environment variables are planned only and are not used by the current runtime.
+Paddle and PayPal environment variables are planned only and are not used by the current runtime. Do not configure checkout, webhook, or billing enforcement variables for the current MVP.

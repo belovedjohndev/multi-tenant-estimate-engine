@@ -33,7 +33,7 @@
 - Deploy as a separate frontend project rooted at `apps/portal-site`.
 - Configure `VITE_API_BASE_URL`.
 - Verify `/login` and `/signup` load through the app-local Vercel rewrites.
-- Verify signup, login, session restore, logout, dashboard metrics, lead listing, settings save, config version history, and billing summary.
+- Verify signup, login, session restore, logout, dashboard metrics, lead listing, settings save, and config version history.
 
 ## Widget
 

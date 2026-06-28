@@ -65,7 +65,7 @@ Owns:
 - auth/session handling
 - lead persistence
 - estimate calculation
-- billing checkout/webhook foundation
+- billing summary foundation
 - tenant-scoped data access
 
 Deployment:
@@ -99,7 +99,7 @@ Owns:
 - leads
 - settings
 - config version history
-- billing summary and checkout trigger
+- billing summary display
 
 Deployment:
 
