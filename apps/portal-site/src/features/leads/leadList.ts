@@ -41,9 +41,9 @@ function renderLeadBadge(label: string, value: string): string {
 function renderEmptyLeads(): string {
     return `
         <div class="empty-state">
-            <p class="empty-state__title">No requests yet</p>
+            <p class="empty-state__title">No estimate requests yet.</p>
             <p class="empty-state__copy">
-                New estimate requests from your website will appear here.
+                Submitted requests from the public estimator will appear here.
             </p>
         </div>
     `;

@@ -1,4 +1,4 @@
-import { renderBillingSummaryPanel } from '../features/billing-summary/billingSummaryPanel';
+import { renderAccessStatusCard } from '../features/billing-summary/billingSummaryPanel';
 import { renderDemoResetButton } from '../features/demo-reset/demoResetPanel';
 import { renderLeadList } from '../features/leads/leadList';
 import { PortalState } from '../portalState';
@@ -41,7 +41,7 @@ export function renderDashboardPage(portal: PortalState): string {
                         leads.summary.latestLeadCreatedAt ? formatDateTime(leads.summary.latestLeadCreatedAt) : 'No requests yet'
                     )}
                 </div>
-                ${renderBillingSummaryPanel(portal)}
+                ${renderAccessStatusCard(portal)}
             </div>
             <div class="surface-card lead-column">
                 <div class="surface-header">
