@@ -1,5 +1,5 @@
-import { portalConfig } from './portalConfig';
 import {
+    fetchPortalBillingSummary,
     fetchPortalClientSettings,
     fetchPortalLeads,
     fetchPortalSession,
@@ -9,43 +9,20 @@ import {
     signupPortal,
     updatePortalClientSettings
 } from './portalApi';
-import { PortalClientSettings, PortalLeadsResponse, PortalSession } from './portalTypes';
+import { portalConfig } from './portalConfig';
+import { createInitialSignupForm, getSignupPrefillClientId, PortalState, state } from './portalState';
+import { PortalClientSettings } from './portalTypes';
+import { renderResetDialog, isDemoResetAvailable } from './features/demo-reset/demoResetPanel';
+import { copyTextToClipboard, getDemoAccessValue, isDemoAccessField } from './features/auth/demoCredentials';
+import { renderPortalShell } from './layout/PortalShell';
+import { renderDashboardPage } from './pages/DashboardPage';
+import { renderLeadsPage } from './pages/LeadsPage';
+import { renderLoginPage } from './pages/LoginPage';
+import { renderSettingsPage } from './pages/SettingsPage';
+import { renderSignupPage } from './pages/SignupPage';
+import { createPortalRouter, isProtectedRoute, PortalRoute } from './router';
+import { getErrorMessage, getStatusCode } from './shared/apiError';
 import './styles.css';
-
-type PortalStatus = 'signedOut' | 'loading' | 'signingIn' | 'signingUp' | 'ready' | 'error';
-type AuthMode = 'login' | 'signup';
-type DemoAccessField = 'clientId' | 'email' | 'password';
-
-interface AppState {
-    portal: {
-        status: PortalStatus;
-        authMode: AuthMode;
-        session: PortalSession | null;
-        leads: PortalLeadsResponse | null;
-        settings: PortalClientSettings | null;
-        errorMessage: string | null;
-        settingsMessage: string | null;
-        isSavingSettings: boolean;
-        isResettingDemo: boolean;
-        isResetDialogOpen: boolean;
-        loginForm: {
-            clientId: string;
-            email: string;
-            password: string;
-            showPassword: boolean;
-        };
-        signupForm: {
-            companyName: string;
-            clientId: string;
-            fullName: string;
-            email: string;
-            phone: string;
-            password: string;
-            confirmPassword: string;
-            showPassword: boolean;
-        };
-    };
-}
 
 const appRoot = document.getElementById('app-root');
 
@@ -54,47 +31,24 @@ if (!(appRoot instanceof HTMLElement)) {
 }
 
 const rootElement: HTMLElement = appRoot;
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-});
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-});
-const portalTitle = normalizePortalTitle(portalConfig.portalTitle);
-const initialAuthMode = resolveInitialAuthMode(window.location.pathname);
+let portalBillingRequestSequence = 0;
 
-const state: AppState = {
-    portal: {
-        status: 'loading',
-        authMode: initialAuthMode,
-        session: null,
-        leads: null,
-        settings: null,
-        errorMessage: null,
-        settingsMessage: null,
-        isSavingSettings: false,
-        isResettingDemo: false,
-        isResetDialogOpen: false,
-        loginForm: {
-            clientId: portalConfig.defaultClientId,
-            email: '',
-            password: '',
-            showPassword: false
-        },
-        signupForm: createInitialSignupForm()
+const router = createPortalRouter({
+    onRouteChange: () => {
+        renderApp();
     }
-};
+});
 
+router.bindLinkHandling(rootElement);
+state.portal.status = 'loading';
 renderApp();
 void hydratePortalSession();
 
-async function hydratePortalSession() {
+async function hydratePortalSession(): Promise<void> {
     await loadPortalDashboard({ suppressErrorOnUnauthorized: true });
 }
 
-async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boolean }) {
+async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boolean }): Promise<void> {
     state.portal.status = 'loading';
     state.portal.errorMessage = null;
     renderApp();
@@ -107,11 +61,16 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
         ]);
 
         state.portal = {
+            ...state.portal,
             status: 'ready',
-            authMode: state.portal.authMode,
             session,
             leads,
             settings,
+            billing: {
+                status: 'loading',
+                summary: state.portal.billing.summary,
+                errorMessage: null
+            },
             errorMessage: null,
             settingsMessage: null,
             isSavingSettings: false,
@@ -127,16 +86,23 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
                 email: state.portal.signupForm.email
             })
         };
+        renderApp();
+        void loadPortalBillingSummary();
+        return;
     } catch (error) {
-        const statusCode = error instanceof Error && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : null;
-        const isUnauthorized = statusCode === 401;
+        const isUnauthorized = getStatusCode(error) === 401;
 
         state.portal = {
+            ...state.portal,
             status: isUnauthorized && options?.suppressErrorOnUnauthorized ? 'signedOut' : 'error',
-            authMode: state.portal.authMode,
             session: null,
             leads: null,
             settings: null,
+            billing: {
+                status: 'idle',
+                summary: null,
+                errorMessage: null
+            },
             errorMessage:
                 isUnauthorized && options?.suppressErrorOnUnauthorized
                     ? null
@@ -162,702 +128,307 @@ async function loadPortalDashboard(options?: { suppressErrorOnUnauthorized?: boo
     renderApp();
 }
 
-function renderApp() {
+async function loadPortalBillingSummary(): Promise<void> {
+    const requestId = ++portalBillingRequestSequence;
+
+    state.portal.billing = {
+        status: 'loading',
+        summary: state.portal.billing.summary,
+        errorMessage: null
+    };
+    renderApp();
+
+    try {
+        const summary = await fetchPortalBillingSummary();
+
+        if (requestId !== portalBillingRequestSequence || state.portal.status !== 'ready') {
+            return;
+        }
+
+        state.portal.billing = {
+            status: 'ready',
+            summary,
+            errorMessage: null
+        };
+    } catch (error) {
+        if (requestId !== portalBillingRequestSequence || state.portal.status !== 'ready') {
+            return;
+        }
+
+        state.portal.billing = {
+            status: 'error',
+            summary: state.portal.billing.summary,
+            errorMessage: getErrorMessage(error, 'Unable to load billing details right now.')
+        };
+    }
+
+    renderApp();
+}
+
+function renderApp(): void {
+    const currentRoute = router.getRoute();
+    const redirectRoute = getRedirectRoute(currentRoute);
+
+    if (redirectRoute && redirectRoute !== currentRoute) {
+        router.replace(redirectRoute);
+        return;
+    }
+
+    const route = redirectRoute ?? currentRoute;
+    syncAuthModeForRoute(route);
+
     rootElement.innerHTML = `
-        <div class="portal-shell">
-            <section class="portal-hero">
-                <div class="portal-hero__copy">
-                    <p class="eyebrow">Private Dashboard</p>
-                    <h1>${escapeHtml(portalTitle)}</h1>
-                    <p class="hero-copy">
-                        Secure sign-in gives your team one place to review estimate requests, update pricing settings,
-                        and manage company details while the public estimate experience stays separate.
-                    </p>
-                </div>
-                <div class="portal-hero__meta">
-                    <span class="hero-pill">Secure dashboard</span>
-                    <span class="hero-pill">Company settings</span>
-                    <span class="hero-pill">Secure sign-in</span>
-                </div>
-            </section>
-            ${renderPortalSurface()}
-        </div>
-        ${renderResetDialog()}
+        ${renderPortalShell({
+            portal: state.portal,
+            route,
+            content: renderRouteContent(route)
+        })}
+        ${renderResetDialog(state.portal)}
     `;
 
     wirePortalEvents();
     applyPortalBranding();
 }
 
-function renderPortalSurface(): string {
-    const { status, session, leads, settings, errorMessage, authMode } = state.portal;
-    const isSignupMode = authMode === 'signup';
-
-    if (status === 'ready' && session && leads && settings) {
-        return renderDashboard(session, leads, settings);
+function getRedirectRoute(route: PortalRoute): PortalRoute | null {
+    if (state.portal.status === 'loading' || state.portal.status === 'signingIn' || state.portal.status === 'signingUp') {
+        return null;
     }
 
+    if (route === '/') {
+        return state.portal.status === 'ready' ? '/dashboard' : '/login';
+    }
+
+    if (isProtectedRoute(route) && state.portal.status !== 'ready') {
+        return '/login';
+    }
+
+    if ((route === '/login' || route === '/signup') && state.portal.status === 'ready') {
+        return '/dashboard';
+    }
+
+    return route;
+}
+
+function renderRouteContent(route: PortalRoute): string {
+    switch (route) {
+        case '/':
+            return renderRouteLoading();
+        case '/login':
+            return renderLoginPage(state.portal);
+        case '/signup':
+            return renderSignupPage(state.portal);
+        case '/dashboard':
+            return renderDashboardPage(state.portal);
+        case '/leads':
+            return renderLeadsPage(state.portal);
+        case '/settings':
+            return renderSettingsPage(state.portal);
+    }
+}
+
+function renderRouteLoading(): string {
     return `
-        <section class="portal-surface">
-            <div class="surface-card surface-card--auth">
-                <div class="surface-header">
-                    <div>
-                        <p class="card-label">${isSignupMode ? 'Create Account' : 'Secure Sign-In'}</p>
-                        <h2>${isSignupMode ? 'Create your company account' : 'Access the private dashboard'}</h2>
-                    </div>
-                    <p class="surface-meta surface-meta--compact">${isSignupMode ? 'New account' : 'Private access'}</p>
-                </div>
-                <p class="surface-copy">
-                    ${
-                        isSignupMode
-                            ? 'Create your account to launch a new company dashboard with your own company ID, pricing settings, and branded portal access.'
-                            : 'Sign in to review customer requests, update pricing settings, and manage your company details.'
-                    }
-                </p>
-                ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
-                ${
-                    status === 'loading' || status === 'signingIn' || status === 'signingUp'
-                        ? renderPortalLoading(status)
-                        : isSignupMode
-                          ? renderSignupForm()
-                          : renderLoginForm()
-                }
-            </div>
-            <div class="surface-card surface-card--notes">
-                <div class="surface-header">
-                    <div>
-                        <p class="card-label">What You Can Manage</p>
-                        <h2>Everything for your company stays here</h2>
-                    </div>
-                </div>
-                <div class="feature-list">
-                    <div class="feature-item">
-                        <h3>Requests</h3>
-                        <p>Review new estimate requests, totals, and recent activity in one private place.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>Company details</h3>
-                        <p>Keep your company name, notification email, phone number, and logo up to date.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>Pricing settings</h3>
-                        <p>Your pricing settings and saved changes stay linked to your company account.</p>
-                    </div>
-                </div>
+        <section class="surface-card">
+            <div class="portal-loading">
+                <p class="portal-loading-title">Please wait</p>
+                <p class="portal-loading-copy">Checking your portal session.</p>
+                <div class="portal-loading-bar"></div>
             </div>
         </section>
     `;
 }
 
-function renderPortalLoading(status: PortalStatus): string {
-    const copy =
-        status === 'signingIn'
-            ? 'Checking your details and opening your dashboard.'
-            : status === 'signingUp'
-              ? 'Creating your company account and preparing your dashboard.'
-            : 'Loading your dashboard and recent requests.';
-
-    return `
-        <div class="portal-loading">
-            <p class="portal-loading-title">Please wait</p>
-            <p class="portal-loading-copy">${escapeHtml(copy)}</p>
-            <div class="portal-loading-bar"></div>
-        </div>
-    `;
+function wirePortalEvents(): void {
+    wireLoginForm();
+    wireSignupForm();
+    wireDemoCredentials();
+    wireRefreshActions();
+    wireDemoResetActions();
+    wireLogoutAction();
+    wireSettingsForm();
 }
 
-function renderLoginForm(): string {
-    const { clientId, email, password, showPassword } = state.portal.loginForm;
-    const demoAccess = portalConfig.demoAccess;
-
-    return `
-        ${renderAuthModeSwitch()}
-        <form id="portal-login-form" class="portal-form">
-            <label class="field">
-                <span class="field-label">Company ID</span>
-                <input
-                    class="field-input"
-                    name="clientId"
-                    type="text"
-                    value="${escapeHtml(clientId)}"
-                    autocomplete="organization"
-                />
-            </label>
-            <label class="field">
-                <span class="field-label">Email</span>
-                <input
-                    class="field-input"
-                    name="email"
-                    type="email"
-                    value="${escapeHtml(email)}"
-                    placeholder="owner@example.com"
-                    autocomplete="email"
-                />
-            </label>
-            <label class="field">
-                <span class="field-label">Password</span>
-                <input
-                    class="field-input"
-                    id="portal-password-input"
-                    name="password"
-                    type="${showPassword ? 'text' : 'password'}"
-                    value="${escapeHtml(password)}"
-                    placeholder="Enter your password"
-                    autocomplete="current-password"
-                />
-            </label>
-            <label class="password-toggle" for="portal-password-toggle">
-                <input
-                    id="portal-password-toggle"
-                    type="checkbox"
-                    ${showPassword ? 'checked' : ''}
-                />
-                <span>Show password</span>
-            </label>
-            <button class="primary-button" type="submit">Sign In</button>
-        </form>
-        <div class="demo-access-card">
-            <div class="demo-access-card__header">
-                <div>
-                    <p class="card-label">Demo Access</p>
-                    <h3>Testing credentials</h3>
-                </div>
-                <button class="secondary-button demo-access-card__action" type="button" id="portal-fill-demo-button">
-                    Use Demo Access
-                </button>
-            </div>
-            <p class="surface-copy demo-access-card__copy">
-                Autofill the shared demo account or copy an individual value below for testing.
-            </p>
-            <div class="demo-access-list">
-                ${renderDemoAccessItem('Company ID', portalConfig.defaultClientId, 'clientId')}
-                ${renderDemoAccessItem('Email', demoAccess.email, 'email')}
-                ${renderDemoAccessItem('Password', demoAccess.password, 'password')}
-            </div>
-        </div>
-    `;
-}
-
-function renderSignupForm(): string {
-    const { companyName, clientId, fullName, email, phone, password, confirmPassword, showPassword } = state.portal.signupForm;
-
-    return `
-        ${renderAuthModeSwitch()}
-        <form id="portal-signup-form" class="portal-form">
-            <div class="settings-grid">
-                <label class="field">
-                    <span class="field-label">Company Name</span>
-                    <input
-                        class="field-input"
-                        name="companyName"
-                        type="text"
-                        value="${escapeHtml(companyName)}"
-                        placeholder="ACME Home Services"
-                        autocomplete="organization"
-                    />
-                </label>
-                <label class="field">
-                    <span class="field-label">Company ID</span>
-                    <input
-                        class="field-input"
-                        name="clientId"
-                        type="text"
-                        value="${escapeHtml(clientId)}"
-                        placeholder="acme-home"
-                        autocomplete="off"
-                    />
-                    <span class="field-hint">Used as your permanent company ID for sign-in and estimator setup.</span>
-                </label>
-                <label class="field">
-                    <span class="field-label">Full Name</span>
-                    <input
-                        class="field-input"
-                        name="fullName"
-                        type="text"
-                        value="${escapeHtml(fullName)}"
-                        placeholder="John D. Owner"
-                        autocomplete="name"
-                    />
-                </label>
-                <label class="field">
-                    <span class="field-label">Phone</span>
-                    <input
-                        class="field-input"
-                        name="phone"
-                        type="text"
-                        value="${escapeHtml(phone)}"
-                        placeholder="Optional"
-                        autocomplete="tel"
-                    />
-                </label>
-                <label class="field">
-                    <span class="field-label">Email</span>
-                    <input
-                        class="field-input"
-                        name="email"
-                        type="email"
-                        value="${escapeHtml(email)}"
-                        placeholder="owner@example.com"
-                        autocomplete="email"
-                    />
-                </label>
-                <label class="field">
-                    <span class="field-label">Password</span>
-                    <input
-                        class="field-input"
-                        id="portal-signup-password-input"
-                        name="password"
-                        type="${showPassword ? 'text' : 'password'}"
-                        value="${escapeHtml(password)}"
-                        placeholder="Create a password"
-                        autocomplete="new-password"
-                    />
-                </label>
-                <label class="field">
-                    <span class="field-label">Confirm Password</span>
-                    <input
-                        class="field-input"
-                        name="confirmPassword"
-                        type="${showPassword ? 'text' : 'password'}"
-                        value="${escapeHtml(confirmPassword)}"
-                        placeholder="Re-enter your password"
-                        autocomplete="new-password"
-                    />
-                </label>
-            </div>
-            <label class="password-toggle" for="portal-signup-password-toggle">
-                <input
-                    id="portal-signup-password-toggle"
-                    type="checkbox"
-                    ${showPassword ? 'checked' : ''}
-                />
-                <span>Show password fields</span>
-            </label>
-            <button class="primary-button" type="submit">Create Account</button>
-        </form>
-    `;
-}
-
-function renderAuthModeSwitch(): string {
-    return `
-        <div class="auth-mode-switch" role="tablist" aria-label="Authentication mode">
-            <button
-                class="auth-mode-button${state.portal.authMode === 'login' ? ' is-active' : ''}"
-                id="portal-auth-mode-login"
-                type="button"
-            >
-                Sign In
-            </button>
-            <button
-                class="auth-mode-button${state.portal.authMode === 'signup' ? ' is-active' : ''}"
-                id="portal-auth-mode-signup"
-                type="button"
-            >
-                Create Account
-            </button>
-        </div>
-    `;
-}
-
-function renderDashboard(session: PortalSession, leads: PortalLeadsResponse, settings: PortalClientSettings): string {
-    const errorMessage = state.portal.errorMessage;
-    const demoResetAvailable = isDemoResetAvailable(session);
-
-    return `
-        <section class="dashboard-shell">
-            <div class="surface-card dashboard-card">
-                <div class="surface-header">
-                    <div>
-                        <p class="card-label">Company Dashboard</p>
-                        <h2>${escapeHtml(settings.companyName)}</h2>
-                    </div>
-                    <div class="portal-actions">
-                        <button class="secondary-button" type="button" id="portal-refresh-button">Refresh</button>
-                        ${
-                            demoResetAvailable
-                                ? `<button class="secondary-button secondary-button--danger" type="button" id="portal-reset-demo-button" ${
-                                      state.portal.isResettingDemo ? 'disabled' : ''
-                                  }>${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo Data'}</button>`
-                                : ''
-                        }
-                        <button class="secondary-button" type="button" id="portal-logout-button">Sign Out</button>
-                    </div>
-                </div>
-                <p class="surface-copy">
-                    Signed in as <strong>${escapeHtml(session.user.fullName)}</strong> (${escapeHtml(session.user.email)}).
-                    Login session ends ${escapeHtml(formatDateTime(session.session.expiresAt))}.
-                </p>
-                ${errorMessage ? `<p class="portal-feedback portal-feedback--error">${escapeHtml(errorMessage)}</p>` : ''}
-                <div class="metric-grid">
-                    ${renderMetricCard('Total Requests', String(leads.summary.totalLeadCount))}
-                    ${renderMetricCard(
-                        'Average Estimate',
-                        leads.summary.averageEstimateTotal === null ? 'No data' : formatCurrency(leads.summary.averageEstimateTotal)
-                    )}
-                    ${renderMetricCard(
-                        'Latest Request',
-                        leads.summary.latestLeadCreatedAt ? formatDateTime(leads.summary.latestLeadCreatedAt) : 'No requests yet'
-                    )}
-                </div>
-                ${renderSettingsPanel(settings)}
-            </div>
-            <div class="surface-card lead-column">
-                <div class="surface-header">
-                    <div>
-                        <p class="card-label">Estimate Requests</p>
-                        <h2>Recent requests</h2>
-                    </div>
-                    <p class="surface-meta">Pricing version shown</p>
-                </div>
-                <div class="lead-list">
-                    ${leads.leads.length ? leads.leads.map(renderLeadCard).join('') : renderEmptyLeads()}
-                </div>
-            </div>
-        </section>
-    `;
-}
-
-function renderDemoAccessItem(label: string, value: string, field: DemoAccessField): string {
-    return `
-        <div class="demo-access-item">
-            <span class="demo-access-item__label">${escapeHtml(label)}</span>
-            <code class="demo-access-item__value">${escapeHtml(value)}</code>
-            <button
-                class="secondary-button demo-access-item__copy"
-                type="button"
-                data-demo-copy-field="${field}"
-            >
-                Copy
-            </button>
-        </div>
-    `;
-}
-
-function renderResetDialog(): string {
-    if (!state.portal.isResetDialogOpen) {
-        return '';
-    }
-
-    return `
-        <div class="portal-dialog-backdrop" id="portal-reset-dialog-backdrop">
-            <section class="portal-dialog" role="dialog" aria-modal="true" aria-labelledby="portal-reset-dialog-title">
-                <p class="card-label">Reset Demo Data</p>
-                <h2 id="portal-reset-dialog-title">Start fresh for the next walkthrough?</h2>
-                <p class="surface-copy">
-                    This clears recent requests and restores the shared demo company settings so the dashboard is ready for the next client review.
-                </p>
-                <div class="portal-dialog__actions">
-                    <button class="secondary-button" type="button" id="portal-reset-dialog-cancel" ${
-                        state.portal.isResettingDemo ? 'disabled' : ''
-                    }>Keep Current Data</button>
-                    <button class="primary-button secondary-button--danger-solid" type="button" id="portal-reset-dialog-confirm" ${
-                        state.portal.isResettingDemo ? 'disabled' : ''
-                    }>
-                        ${state.portal.isResettingDemo ? 'Resetting...' : 'Reset Demo Data'}
-                    </button>
-                </div>
-            </section>
-        </div>
-    `;
-}
-
-function renderMetricCard(label: string, value: string): string {
-    return `
-        <div class="metric-card">
-            <p class="metric-label">${escapeHtml(label)}</p>
-            <p class="metric-value">${escapeHtml(value)}</p>
-        </div>
-    `;
-}
-
-function renderLeadCard(lead: PortalLeadsResponse['leads'][number]): string {
-    return `
-        <article class="lead-card">
-            <div class="lead-card__row">
-                <div>
-                    <p class="lead-title">${escapeHtml(lead.name || 'Estimate request')}</p>
-                    <p class="lead-subtitle">${escapeHtml(lead.email)}${lead.phone ? ` | ${escapeHtml(lead.phone)}` : ''}</p>
-                </div>
-                <p class="lead-total">${escapeHtml(formatCurrency(lead.estimateData.total))}</p>
-            </div>
-            <div class="lead-badges">
-                ${renderLeadBadge('Submitted', formatDateTime(lead.createdAt))}
-                ${renderLeadBadge(
-                    'Complexity',
-                    lead.estimateInput?.complexity ? lead.estimateInput.complexity.toUpperCase() : 'N/A'
-                )}
-                ${renderLeadBadge('Saved version', `v${lead.configVersionNumber}`)}
-                ${renderLeadBadge('Project size', lead.estimateInput?.size !== undefined ? String(lead.estimateInput.size) : 'N/A')}
-                ${renderLeadBadge('Bulk pricing', lead.estimateInput?.bulk === true ? 'Yes' : lead.estimateInput?.bulk === false ? 'No' : 'N/A')}
-            </div>
-        </article>
-    `;
-}
-
-function renderLeadBadge(label: string, value: string): string {
-    return `<span class="lead-badge"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`;
-}
-
-function renderEmptyLeads(): string {
-    return `
-        <div class="empty-state">
-            <p class="empty-state__title">No requests yet</p>
-            <p class="empty-state__copy">
-                New estimate requests from your website will appear here.
-            </p>
-        </div>
-    `;
-}
-
-function renderSettingsPanel(settings: PortalClientSettings): string {
-    const estimatorConfigJson = JSON.stringify(settings.estimatorConfig, null, 2);
-    const settingsMessage = state.portal.settingsMessage;
-    const historyMarkup = settings.configHistory.length
-        ? settings.configHistory
-              .map(
-                  (entry) => `
-                    <li class="history-item">
-                        <span class="history-item__version">${escapeHtml(`v${entry.versionNumber}`)}</span>
-                        <span class="history-item__meta">${escapeHtml(formatDateTime(entry.createdAt))}${
-                            entry.createdByEmail ? ` by ${escapeHtml(entry.createdByEmail)}` : ''
-                        }</span>
-                        ${entry.isActive ? '<span class="history-item__active">Current</span>' : ''}
-                    </li>
-                `
-              )
-              .join('')
-        : '<li class="history-item">No saved changes yet.</li>';
-
-    return `
-        <section class="settings-panel">
-            <div class="settings-panel__header">
-                <div>
-                    <p class="card-label">Company Settings</p>
-                    <h3>Profile, pricing, and change history</h3>
-                </div>
-                <p class="surface-meta">Company ID: ${escapeHtml(settings.clientId)}</p>
-            </div>
-            <p class="surface-copy">
-                Update your company details and pricing settings here while keeping the same company ID for your website.
-            </p>
-            <div class="settings-version-card">
-                <p class="metric-label">Current Saved Version</p>
-                <p class="settings-version-card__value">v${escapeHtml(String(settings.currentConfigVersion.versionNumber))}</p>
-                <p class="settings-version-card__meta">Saved ${escapeHtml(formatDateTime(settings.currentConfigVersion.createdAt))}</p>
-            </div>
-            ${settingsMessage ? `<p class="portal-feedback portal-feedback--success">${escapeHtml(settingsMessage)}</p>` : ''}
-            <form id="portal-settings-form" class="portal-form">
-                <div class="settings-grid">
-                    <label class="field">
-                        <span class="field-label">Company Name</span>
-                        <input class="field-input" name="companyName" type="text" value="${escapeHtml(settings.companyName)}" />
-                    </label>
-                    <label class="field">
-                        <span class="field-label">Notification Email</span>
-                        <input class="field-input" name="notificationEmail" type="email" value="${escapeHtml(settings.notificationEmail || '')}" />
-                    </label>
-                    <label class="field">
-                        <span class="field-label">Phone</span>
-                        <input class="field-input" name="phone" type="text" value="${escapeHtml(settings.phone || '')}" />
-                    </label>
-                    <label class="field">
-                        <span class="field-label">Logo URL</span>
-                        <input class="field-input" name="logoUrl" type="url" value="${escapeHtml(settings.logoUrl || '')}" />
-                    </label>
-                </div>
-                <label class="field">
-                    <span class="field-label">Pricing Settings</span>
-                    <textarea class="field-input field-input--multiline" name="estimatorConfig">${escapeHtml(estimatorConfigJson)}</textarea>
-                </label>
-                <button class="primary-button" type="submit">${state.portal.isSavingSettings ? 'Saving...' : 'Save Changes'}</button>
-            </form>
-            <div class="settings-history">
-                <div class="settings-history__header">
-                    <p class="card-label">Pricing Change History</p>
-                    <p class="surface-meta">Saved versions</p>
-                </div>
-                <ul class="history-list">
-                    ${historyMarkup}
-                </ul>
-            </div>
-        </section>
-    `;
-}
-
-function wirePortalEvents() {
-    const authModeLoginButton = document.getElementById('portal-auth-mode-login');
-
-    if (authModeLoginButton instanceof HTMLButtonElement) {
-        authModeLoginButton.addEventListener('click', () => {
-            setAuthMode('login');
-        });
-    }
-
-    const authModeSignupButton = document.getElementById('portal-auth-mode-signup');
-
-    if (authModeSignupButton instanceof HTMLButtonElement) {
-        authModeSignupButton.addEventListener('click', () => {
-            setAuthMode('signup');
-        });
-    }
-
+function wireLoginForm(): void {
     const loginForm = document.getElementById('portal-login-form');
 
-    if (loginForm instanceof HTMLFormElement) {
-        bindLoginField(loginForm, 'clientId');
-        bindLoginField(loginForm, 'email');
-        bindLoginField(loginForm, 'password');
+    if (!(loginForm instanceof HTMLFormElement)) {
+        return;
+    }
 
-        const passwordToggle = document.getElementById('portal-password-toggle');
+    bindLoginField(loginForm, 'clientId');
+    bindLoginField(loginForm, 'email');
+    bindLoginField(loginForm, 'password');
 
-        if (passwordToggle instanceof HTMLInputElement) {
-            passwordToggle.addEventListener('change', () => {
-                state.portal.loginForm.showPassword = passwordToggle.checked;
-                renderApp();
-            });
-        }
+    const passwordToggle = document.getElementById('portal-password-toggle');
 
-        loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const formData = new FormData(loginForm);
-            const clientId = String(formData.get('clientId') ?? '').trim();
-            const email = String(formData.get('email') ?? '').trim();
-            const password = String(formData.get('password') ?? '');
-            state.portal.loginForm = {
-                ...state.portal.loginForm,
-                clientId,
-                email,
-                password
-            };
-
-            state.portal.status = 'signingIn';
-            state.portal.errorMessage = null;
+    if (passwordToggle instanceof HTMLInputElement) {
+        passwordToggle.addEventListener('change', () => {
+            state.portal.loginForm.showPassword = passwordToggle.checked;
             renderApp();
-
-            try {
-                await loginPortal({ clientId, email, password });
-                await loadPortalDashboard();
-            } catch (error) {
-                state.portal = {
-                    status: 'error',
-                    authMode: 'login',
-                    session: null,
-                    leads: null,
-                    settings: null,
-                    errorMessage: getErrorMessage(error, 'Unable to sign in.'),
-                    settingsMessage: null,
-                    isSavingSettings: false,
-                    isResettingDemo: false,
-                    isResetDialogOpen: false,
-                    loginForm: state.portal.loginForm,
-                    signupForm: {
-                        ...state.portal.signupForm,
-                        password: '',
-                        confirmPassword: '',
-                        showPassword: false
-                    }
-                };
-                renderApp();
-            }
         });
     }
 
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(loginForm);
+        const clientId = String(formData.get('clientId') ?? '').trim();
+        const email = String(formData.get('email') ?? '').trim();
+        const password = String(formData.get('password') ?? '');
+        state.portal.loginForm = {
+            ...state.portal.loginForm,
+            clientId,
+            email,
+            password
+        };
+
+        state.portal.status = 'signingIn';
+        state.portal.errorMessage = null;
+        renderApp();
+
+        try {
+            await loginPortal({ clientId, email, password });
+            await loadPortalDashboard();
+            router.replace('/dashboard');
+        } catch (error) {
+            state.portal = {
+                ...state.portal,
+                status: 'error',
+                authMode: 'login',
+                session: null,
+                leads: null,
+                settings: null,
+                billing: {
+                    status: 'idle',
+                    summary: null,
+                    errorMessage: null
+                },
+                errorMessage: getErrorMessage(error, 'Unable to sign in.'),
+                settingsMessage: null,
+                isSavingSettings: false,
+                isResettingDemo: false,
+                isResetDialogOpen: false,
+                loginForm: state.portal.loginForm,
+                signupForm: {
+                    ...state.portal.signupForm,
+                    password: '',
+                    confirmPassword: '',
+                    showPassword: false
+                }
+            };
+            renderApp();
+        }
+    });
+}
+
+function wireSignupForm(): void {
     const signupForm = document.getElementById('portal-signup-form');
 
-    if (signupForm instanceof HTMLFormElement) {
-        bindSignupField(signupForm, 'companyName');
-        bindSignupField(signupForm, 'clientId');
-        bindSignupField(signupForm, 'fullName');
-        bindSignupField(signupForm, 'phone');
-        bindSignupField(signupForm, 'email');
-        bindSignupField(signupForm, 'password');
-        bindSignupField(signupForm, 'confirmPassword');
+    if (!(signupForm instanceof HTMLFormElement)) {
+        return;
+    }
 
-        const signupPasswordToggle = document.getElementById('portal-signup-password-toggle');
+    bindSignupField(signupForm, 'companyName');
+    bindSignupField(signupForm, 'clientId');
+    bindSignupField(signupForm, 'fullName');
+    bindSignupField(signupForm, 'phone');
+    bindSignupField(signupForm, 'email');
+    bindSignupField(signupForm, 'password');
+    bindSignupField(signupForm, 'confirmPassword');
 
-        if (signupPasswordToggle instanceof HTMLInputElement) {
-            signupPasswordToggle.addEventListener('change', () => {
-                state.portal.signupForm.showPassword = signupPasswordToggle.checked;
-                renderApp();
-            });
+    const signupPasswordToggle = document.getElementById('portal-signup-password-toggle');
+
+    if (signupPasswordToggle instanceof HTMLInputElement) {
+        signupPasswordToggle.addEventListener('change', () => {
+            state.portal.signupForm.showPassword = signupPasswordToggle.checked;
+            renderApp();
+        });
+    }
+
+    signupForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(signupForm);
+        const signupFormState = {
+            companyName: String(formData.get('companyName') ?? '').trim(),
+            clientId: String(formData.get('clientId') ?? '').trim().toLowerCase(),
+            fullName: String(formData.get('fullName') ?? '').trim(),
+            phone: String(formData.get('phone') ?? '').trim(),
+            email: String(formData.get('email') ?? '').trim(),
+            password: String(formData.get('password') ?? ''),
+            confirmPassword: String(formData.get('confirmPassword') ?? ''),
+            showPassword: state.portal.signupForm.showPassword
+        };
+
+        state.portal.signupForm = signupFormState;
+
+        if (signupFormState.password !== signupFormState.confirmPassword) {
+            state.portal.errorMessage = 'Password confirmation must match before creating the account.';
+            renderApp();
+            return;
         }
 
-        signupForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+        state.portal.status = 'signingUp';
+        state.portal.errorMessage = null;
+        renderApp();
 
-            const formData = new FormData(signupForm);
-            const signupFormState = {
-                companyName: String(formData.get('companyName') ?? '').trim(),
-                clientId: String(formData.get('clientId') ?? '').trim().toLowerCase(),
-                fullName: String(formData.get('fullName') ?? '').trim(),
-                phone: String(formData.get('phone') ?? '').trim(),
-                email: String(formData.get('email') ?? '').trim(),
-                password: String(formData.get('password') ?? ''),
-                confirmPassword: String(formData.get('confirmPassword') ?? ''),
-                showPassword: state.portal.signupForm.showPassword
+        try {
+            await signupPortal({
+                clientId: signupFormState.clientId,
+                companyName: signupFormState.companyName,
+                fullName: signupFormState.fullName,
+                email: signupFormState.email,
+                password: signupFormState.password,
+                phone: signupFormState.phone || undefined
+            });
+            state.portal.loginForm = {
+                ...state.portal.loginForm,
+                clientId: signupFormState.clientId,
+                email: signupFormState.email,
+                password: '',
+                showPassword: false
             };
-
-            state.portal.signupForm = signupFormState;
-
-            if (signupFormState.password !== signupFormState.confirmPassword) {
-                state.portal.errorMessage = 'Password confirmation must match before creating the account.';
-                renderApp();
-                return;
-            }
-
-            state.portal.status = 'signingUp';
-            state.portal.errorMessage = null;
-            renderApp();
-
-            try {
-                await signupPortal({
-                    clientId: signupFormState.clientId,
-                    companyName: signupFormState.companyName,
-                    fullName: signupFormState.fullName,
-                    email: signupFormState.email,
-                    password: signupFormState.password,
-                    phone: signupFormState.phone || undefined
-                });
-                state.portal.loginForm = {
+            await loadPortalDashboard();
+            router.replace('/dashboard');
+        } catch (error) {
+            state.portal = {
+                ...state.portal,
+                status: 'error',
+                authMode: 'signup',
+                session: null,
+                leads: null,
+                settings: null,
+                billing: {
+                    status: 'idle',
+                    summary: null,
+                    errorMessage: null
+                },
+                errorMessage: getErrorMessage(error, 'Unable to create your account.'),
+                settingsMessage: null,
+                isSavingSettings: false,
+                isResettingDemo: false,
+                isResetDialogOpen: false,
+                loginForm: {
                     ...state.portal.loginForm,
                     clientId: signupFormState.clientId,
                     email: signupFormState.email,
                     password: '',
                     showPassword: false
-                };
-                await loadPortalDashboard();
-            } catch (error) {
-                state.portal = {
-                    status: 'error',
-                    authMode: 'signup',
-                    session: null,
-                    leads: null,
-                    settings: null,
-                    errorMessage: getErrorMessage(error, 'Unable to create your account.'),
-                    settingsMessage: null,
-                    isSavingSettings: false,
-                    isResettingDemo: false,
-                    isResetDialogOpen: false,
-                    loginForm: {
-                        ...state.portal.loginForm,
-                        clientId: signupFormState.clientId,
-                        email: signupFormState.email,
-                        password: '',
-                        showPassword: false
-                    },
-                    signupForm: {
-                        ...signupFormState,
-                        password: '',
-                        confirmPassword: '',
-                        showPassword: false
-                    }
-                };
-                renderApp();
-            }
-        });
-    }
+                },
+                signupForm: {
+                    ...signupFormState,
+                    password: '',
+                    confirmPassword: '',
+                    showPassword: false
+                }
+            };
+            renderApp();
+        }
+    });
+}
 
+function wireDemoCredentials(): void {
     const fillDemoButton = document.getElementById('portal-fill-demo-button');
 
     if (fillDemoButton instanceof HTMLButtonElement) {
@@ -899,7 +470,9 @@ function wirePortalEvents() {
             }, 1400);
         });
     });
+}
 
+function wireRefreshActions(): void {
     const refreshButton = document.getElementById('portal-refresh-button');
 
     if (refreshButton instanceof HTMLButtonElement) {
@@ -908,6 +481,20 @@ function wirePortalEvents() {
         });
     }
 
+    const refreshBillingButton = document.getElementById('portal-refresh-billing-button');
+
+    if (refreshBillingButton instanceof HTMLButtonElement) {
+        refreshBillingButton.addEventListener('click', async () => {
+            if (state.portal.status !== 'ready') {
+                return;
+            }
+
+            await loadPortalBillingSummary();
+        });
+    }
+}
+
+function wireDemoResetActions(): void {
     const resetDemoButton = document.getElementById('portal-reset-demo-button');
 
     if (resetDemoButton instanceof HTMLButtonElement) {
@@ -968,96 +555,110 @@ function wirePortalEvents() {
             }
         });
     }
-
-    const logoutButton = document.getElementById('portal-logout-button');
-
-    if (logoutButton instanceof HTMLButtonElement) {
-        logoutButton.addEventListener('click', async () => {
-            try {
-                await logoutPortal();
-            } catch {
-                // Logging out should still clear the local session even if the network request fails.
-            }
-
-            state.portal = {
-                status: 'signedOut',
-                authMode: 'login',
-                session: null,
-                leads: null,
-                settings: null,
-                errorMessage: null,
-                settingsMessage: null,
-                isSavingSettings: false,
-                isResettingDemo: false,
-                isResetDialogOpen: false,
-                loginForm: {
-                    ...state.portal.loginForm,
-                    password: '',
-                    showPassword: false
-                },
-                signupForm: createInitialSignupForm({
-                    clientId: state.portal.loginForm.clientId,
-                    email: state.portal.loginForm.email
-                })
-            };
-            renderApp();
-        });
-    }
-
-    const settingsForm = document.getElementById('portal-settings-form');
-
-    if (settingsForm instanceof HTMLFormElement) {
-        settingsForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const currentSettings = state.portal.settings;
-
-            if (!currentSettings) {
-                return;
-            }
-
-            const formData = new FormData(settingsForm);
-            const estimatorConfigText = String(formData.get('estimatorConfig') ?? '');
-
-            let estimatorConfig: PortalClientSettings['estimatorConfig'];
-
-            try {
-                estimatorConfig = JSON.parse(estimatorConfigText) as PortalClientSettings['estimatorConfig'];
-            } catch {
-                state.portal.settingsMessage = null;
-                state.portal.errorMessage = 'Pricing settings format is invalid. Please review the entries and try again.';
-                renderApp();
-                return;
-            }
-
-            state.portal.isSavingSettings = true;
-            state.portal.errorMessage = null;
-            state.portal.settingsMessage = null;
-            renderApp();
-
-            try {
-                const updatedSettings = await updatePortalClientSettings({
-                    companyName: String(formData.get('companyName') ?? '').trim(),
-                    logoUrl: normalizeOptionalValue(formData.get('logoUrl')),
-                    phone: normalizeOptionalValue(formData.get('phone')),
-                    notificationEmail: normalizeOptionalValue(formData.get('notificationEmail')),
-                    estimatorConfig
-                });
-
-                state.portal.settings = updatedSettings;
-                state.portal.isSavingSettings = false;
-                state.portal.settingsMessage = 'Company settings saved.';
-                renderApp();
-            } catch (error) {
-                state.portal.isSavingSettings = false;
-                state.portal.errorMessage = getErrorMessage(error, 'Unable to save company settings.');
-                renderApp();
-            }
-        });
-    }
 }
 
-function applyPortalBranding() {
+function wireLogoutAction(): void {
+    const logoutButton = document.getElementById('portal-logout-button');
+
+    if (!(logoutButton instanceof HTMLButtonElement)) {
+        return;
+    }
+
+    logoutButton.addEventListener('click', async () => {
+        try {
+            await logoutPortal();
+        } catch {
+            // Logging out should still clear the local session even if the network request fails.
+        }
+
+        state.portal = {
+            ...state.portal,
+            status: 'signedOut',
+            authMode: 'login',
+            session: null,
+            leads: null,
+            settings: null,
+            billing: {
+                status: 'idle',
+                summary: null,
+                errorMessage: null
+            },
+            errorMessage: null,
+            settingsMessage: null,
+            isSavingSettings: false,
+            isResettingDemo: false,
+            isResetDialogOpen: false,
+            loginForm: {
+                ...state.portal.loginForm,
+                password: '',
+                showPassword: false
+            },
+            signupForm: createInitialSignupForm({
+                clientId: state.portal.loginForm.clientId,
+                email: state.portal.loginForm.email
+            })
+        };
+        router.replace('/login');
+    });
+}
+
+function wireSettingsForm(): void {
+    const settingsForm = document.getElementById('portal-settings-form');
+
+    if (!(settingsForm instanceof HTMLFormElement)) {
+        return;
+    }
+
+    settingsForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const currentSettings = state.portal.settings;
+
+        if (!currentSettings) {
+            return;
+        }
+
+        const formData = new FormData(settingsForm);
+        const estimatorConfigText = String(formData.get('estimatorConfig') ?? '');
+
+        let estimatorConfig: PortalClientSettings['estimatorConfig'];
+
+        try {
+            estimatorConfig = JSON.parse(estimatorConfigText) as PortalClientSettings['estimatorConfig'];
+        } catch {
+            state.portal.settingsMessage = null;
+            state.portal.errorMessage = 'Pricing settings format is invalid. Please review the entries and try again.';
+            renderApp();
+            return;
+        }
+
+        state.portal.isSavingSettings = true;
+        state.portal.errorMessage = null;
+        state.portal.settingsMessage = null;
+        renderApp();
+
+        try {
+            const updatedSettings = await updatePortalClientSettings({
+                companyName: String(formData.get('companyName') ?? '').trim(),
+                logoUrl: normalizeOptionalValue(formData.get('logoUrl')),
+                phone: normalizeOptionalValue(formData.get('phone')),
+                notificationEmail: normalizeOptionalValue(formData.get('notificationEmail')),
+                estimatorConfig
+            });
+
+            state.portal.settings = updatedSettings;
+            state.portal.isSavingSettings = false;
+            state.portal.settingsMessage = 'Company settings saved.';
+            renderApp();
+        } catch (error) {
+            state.portal.isSavingSettings = false;
+            state.portal.errorMessage = getErrorMessage(error, 'Unable to save company settings.');
+            renderApp();
+        }
+    });
+}
+
+function applyPortalBranding(): void {
     const branding = state.portal.session?.client.branding;
 
     rootElement.style.setProperty('--portal-accent', branding?.primaryColor ?? '#b45309');
@@ -1068,7 +669,7 @@ function applyPortalBranding() {
 function bindLoginField(
     loginForm: HTMLFormElement,
     fieldName: 'clientId' | 'email' | 'password'
-) {
+): void {
     const field = loginForm.elements.namedItem(fieldName);
 
     if (!(field instanceof HTMLInputElement)) {
@@ -1083,7 +684,7 @@ function bindLoginField(
 function bindSignupField(
     signupForm: HTMLFormElement,
     fieldName: 'companyName' | 'clientId' | 'fullName' | 'phone' | 'email' | 'password' | 'confirmPassword'
-) {
+): void {
     const field = signupForm.elements.namedItem(fieldName);
 
     if (!(field instanceof HTMLInputElement)) {
@@ -1095,149 +696,24 @@ function bindSignupField(
     });
 }
 
-function setAuthMode(mode: AuthMode) {
-    if (state.portal.authMode === mode) {
-        return;
-    }
-
-    if (mode === 'signup') {
+function syncAuthModeForRoute(route: PortalRoute): void {
+    if (route === '/signup') {
+        state.portal.authMode = 'signup';
         state.portal.signupForm = {
             ...state.portal.signupForm,
             clientId: getSignupPrefillClientId(state.portal.signupForm.clientId || state.portal.loginForm.clientId),
             email: state.portal.signupForm.email || state.portal.loginForm.email
         };
-    } else {
+    }
+
+    if (route === '/login') {
+        state.portal.authMode = 'login';
         state.portal.loginForm = {
             ...state.portal.loginForm,
             clientId: state.portal.signupForm.clientId || state.portal.loginForm.clientId,
-            email: state.portal.signupForm.email || state.portal.loginForm.email,
-            password: ''
+            email: state.portal.signupForm.email || state.portal.loginForm.email
         };
     }
-
-    state.portal.authMode = mode;
-    state.portal.status = 'signedOut';
-    state.portal.errorMessage = null;
-    syncAuthModePath(mode);
-    renderApp();
-}
-
-function isDemoResetAvailable(session: PortalSession | null): boolean {
-    return Boolean(session && session.client.name === portalConfig.defaultClientId);
-}
-
-function normalizePortalTitle(value: string): string {
-    return value.replace(/client portal/gi, 'Private Dashboard').replace(/portal/gi, 'Dashboard');
-}
-
-function resolveInitialAuthMode(pathname: string): AuthMode {
-    const normalizedPath = normalizePortalPath(pathname);
-
-    if (normalizedPath === '/signup') {
-        return 'signup';
-    }
-
-    return 'login';
-}
-
-function syncAuthModePath(mode: AuthMode): void {
-    const nextPath = mode === 'signup' ? '/signup' : '/login';
-
-    if (normalizePortalPath(window.location.pathname) === nextPath) {
-        return;
-    }
-
-    window.history.replaceState(window.history.state, '', nextPath);
-}
-
-function normalizePortalPath(pathname: string): string {
-    const normalizedPath = pathname.trim().replace(/\/+$/, '');
-
-    return normalizedPath || '/';
-}
-
-function createInitialSignupForm(overrides?: Partial<AppState['portal']['signupForm']>): AppState['portal']['signupForm'] {
-    const form: AppState['portal']['signupForm'] = {
-        companyName: '',
-        clientId: '',
-        fullName: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '',
-        showPassword: false
-    };
-
-    if (overrides) {
-        Object.assign(form, overrides);
-    }
-
-    form.clientId = getSignupPrefillClientId(overrides?.clientId);
-    form.password = '';
-    form.confirmPassword = '';
-    form.showPassword = false;
-
-    return form;
-}
-
-function getSignupPrefillClientId(value: string | undefined): string {
-    if (!value) {
-        return '';
-    }
-
-    const normalizedValue = value.trim().toLowerCase();
-
-    if (!normalizedValue || normalizedValue === portalConfig.defaultClientId.trim().toLowerCase()) {
-        return '';
-    }
-
-    return value;
-}
-
-function isDemoAccessField(value: string | undefined): value is DemoAccessField {
-    return value === 'clientId' || value === 'email' || value === 'password';
-}
-
-function getDemoAccessValue(field: DemoAccessField): string {
-    switch (field) {
-        case 'clientId':
-            return portalConfig.defaultClientId;
-        case 'email':
-            return portalConfig.demoAccess.email;
-        case 'password':
-            return portalConfig.demoAccess.password;
-    }
-}
-
-async function copyTextToClipboard(value: string): Promise<boolean> {
-    try {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(value);
-            return true;
-        }
-    } catch {
-        // Fall back to a temporary textarea when the Clipboard API is unavailable.
-    }
-
-    const textArea = document.createElement('textarea');
-    textArea.value = value;
-    textArea.setAttribute('readonly', 'true');
-    textArea.style.position = 'fixed';
-    textArea.style.opacity = '0';
-    textArea.style.pointerEvents = 'none';
-    document.body.append(textArea);
-    textArea.select();
-
-    let copied = false;
-
-    try {
-        copied = document.execCommand('copy');
-    } catch {
-        copied = false;
-    }
-
-    textArea.remove();
-    return copied;
 }
 
 function normalizeOptionalValue(value: FormDataEntryValue | null): string | undefined {
@@ -1248,29 +724,4 @@ function normalizeOptionalValue(value: FormDataEntryValue | null): string | unde
     const trimmedValue = value.trim();
 
     return trimmedValue || undefined;
-}
-
-function formatCurrency(value: number): string {
-    return currencyFormatter.format(value);
-}
-
-function formatDateTime(value: string): string {
-    return dateTimeFormatter.format(new Date(value));
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-    if (error instanceof Error && error.message) {
-        return error.message;
-    }
-
-    return fallback;
-}
-
-function escapeHtml(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }

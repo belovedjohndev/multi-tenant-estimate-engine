@@ -1,16 +1,23 @@
 # Node
 node_modules/
+**/node_modules/
 dist/
+**/dist/
 build/
+**/build/
+coverage/
+**/coverage/
 *.log
 
 # Env
 .env
 .env.*
-backend/.env
-demo-site/.env
-portal-site/.env
-widget/.env
+**/.env
+**/.env.*
+!.env.example
+!.env.production.example
+!**/.env.example
+!**/.env.production.example
 
 # OS
 .DS_Store
@@ -26,4 +33,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Misc
-coverage/
+.vercel/
+**/.vercel/
+.turbo/
+**/.turbo/

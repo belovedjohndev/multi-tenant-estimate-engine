@@ -1,11 +1,13 @@
 import { portalConfig } from './portalConfig';
 import {
     ApiErrorResponse,
+    PortalBillingSummary,
     PortalClientSettings,
     PortalLeadsResponse,
     PortalLoginResponse,
     PortalSession
 } from './portalTypes';
+import { buildApiUnreachableMessage } from './shared/apiError';
 
 interface ApiSuccessEnvelope<T> {
     success: true;
@@ -71,6 +73,12 @@ export async function fetchPortalClientSettings(): Promise<PortalClientSettings>
     });
 }
 
+export async function fetchPortalBillingSummary(): Promise<PortalBillingSummary> {
+    return requestPortalApi<PortalBillingSummary>('/portal/billing', {
+        method: 'GET'
+    });
+}
+
 export async function updatePortalClientSettings(
     input: Omit<PortalClientSettings, 'clientId' | 'currentConfigVersion' | 'configHistory'>
 ): Promise<PortalClientSettings> {
@@ -114,7 +122,7 @@ async function requestPortalApi<T>(
     } catch {
         throw createPortalApiError(
             'network_error',
-            'Unable to reach the dashboard API. Please try again.',
+            buildApiUnreachableMessage(portalConfig.apiBaseUrl),
             0
         );
     }

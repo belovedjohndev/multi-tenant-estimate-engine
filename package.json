@@ -1,0 +1,29 @@
+{
+  "name": "belovedjohndev-estimate-engine-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo workspace for the Estimate Engine backend, demo site, portal site, and embeddable widget.",
+  "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "apps/backend",
+    "apps/demo-site",
+    "apps/portal-site",
+    "apps/widget"
+  ],
+  "scripts": {
+    "build": "npm run build:backend && npm run build:demo && npm run build:portal && npm run build:widget",
+    "test": "npm --workspace estimate-engine-backend test",
+    "typecheck": "npm --workspaces --if-present run typecheck",
+    "lint": "npm --workspaces --if-present run lint",
+    "dev:backend": "npm --workspace estimate-engine-backend run dev",
+    "dev:demo": "npm --workspace estimate-engine-demo-site run dev",
+    "dev:portal": "npm --workspace estimate-engine-portal-site run dev",
+    "build:backend": "npm --workspace estimate-engine-backend run build",
+    "build:demo": "npm --workspace estimate-engine-demo-site run build",
+    "build:portal": "npm --workspace estimate-engine-portal-site run build",
+    "build:widget": "npm --workspace estimate-engine-widget run build"
+  }
+}

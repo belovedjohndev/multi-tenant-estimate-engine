@@ -1,0 +1,22 @@
+{
+  "name": "estimate-engine-widget",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/estimate-engine-widget.iife.js",
+  "module": "dist/estimate-engine-widget.es.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc --emitDeclarationOnly && vite build --config vite.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vite": "^8.1.0"
+  }
+}
