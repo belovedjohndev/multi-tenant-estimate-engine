@@ -175,6 +175,7 @@ textarea {
     color: var(--color-ink-soft);
     cursor: pointer;
     font-weight: 700;
+    text-decoration: none;
     transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
@@ -428,6 +429,7 @@ textarea {
     cursor: pointer;
     padding: 0.9rem 1.15rem;
     font-weight: 700;
+    text-decoration: none;
     transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
@@ -523,6 +525,82 @@ textarea {
     justify-content: flex-end;
 }
 
+.portal-app-layout {
+    display: grid;
+    grid-template-columns: 17rem minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.portal-nav {
+    position: sticky;
+    top: 1rem;
+    display: grid;
+    gap: 1.1rem;
+    padding: 1.1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: 0 10px 28px rgba(17, 24, 39, 0.05);
+}
+
+.portal-nav__brand {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.portal-nav__brand h2,
+.portal-nav__brand p {
+    margin: 0;
+}
+
+.portal-nav__brand h2 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+}
+
+.portal-nav__brand p:not(.card-label) {
+    color: var(--color-ink-soft);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.portal-nav__links {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.portal-nav__link {
+    padding: 0.7rem 0.8rem;
+    border-radius: 8px;
+    color: var(--color-ink-soft);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.portal-nav__link:hover,
+.portal-nav__link.is-active {
+    background: var(--color-surface-muted);
+    color: var(--color-ink);
+}
+
+.portal-nav__signout {
+    width: 100%;
+}
+
+.portal-main,
+.dashboard-screen,
+.leads-screen,
+.settings-screen {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.dashboard-screen {
+    grid-template-columns: minmax(0, 1.05fr) minmax(20rem, 0.95fr);
+    align-items: start;
+}
+
 .metric-grid,
 .settings-grid,
 .billing-summary-grid {
@@ -571,23 +649,6 @@ textarea {
     border-radius: 12px;
     border: 1px solid var(--color-border);
     background: var(--color-surface);
-}
-
-.billing-checkout,
-.billing-checkout-form {
-    display: grid;
-    gap: 0.9rem;
-}
-
-.billing-checkout {
-    padding: 1rem;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-soft);
-    background: var(--color-surface-muted);
-}
-
-.billing-checkout-form__submit {
-    width: fit-content;
 }
 
 .settings-version-card {
@@ -734,8 +795,18 @@ textarea {
 @media (max-width: 1080px) {
     .portal-hero,
     .portal-surface,
-    .dashboard-shell {
+    .dashboard-shell,
+    .portal-app-layout,
+    .dashboard-screen {
         grid-template-columns: 1fr;
+    }
+
+    .portal-nav {
+        position: static;
+    }
+
+    .portal-nav__links {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .portal-hero__meta {
@@ -767,6 +838,10 @@ textarea {
 
     .portal-actions {
         justify-content: start;
+    }
+
+    .portal-nav__links {
+        grid-template-columns: 1fr;
     }
 
     .demo-access-item {

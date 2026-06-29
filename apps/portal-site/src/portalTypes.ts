@@ -104,12 +104,6 @@ export type PortalBillingInterval = 'month' | 'year' | 'manual';
 
 export type PortalBillingPlanCode = 'starter_monthly' | 'growth_monthly' | 'pro_monthly' | 'enterprise_manual';
 
-export interface PortalCheckoutSession {
-    provider: 'paddle' | 'paypal';
-    planCode: PortalBillingPlanCode;
-    checkoutUrl: string;
-}
-
 export interface PortalBillingSummary {
     enforcementState: PortalBillingEnforcementState;
     subscription: {
